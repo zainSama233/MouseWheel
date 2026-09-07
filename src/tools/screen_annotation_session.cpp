@@ -17,7 +17,8 @@ public:
     ScreenOverlay(QScreen* screen,std::shared_ptr<AnnotationDocument> document,std::shared_ptr<Annotation> style)
         : document_(std::move(document)),style_(std::move(style)) {
         setObjectName("screen-annotation-overlay");
-        setWindowFlags(Qt::Tool|Qt::FramelessWindowHint|Qt::WindowStaysOnTopHint);
+        setWindowFlags(Qt::Tool|Qt::FramelessWindowHint|Qt::WindowStaysOnTopHint|Qt::WindowDoesNotAcceptFocus);
+        setAttribute(Qt::WA_ShowWithoutActivating);
         setAttribute(Qt::WA_TranslucentBackground); setScreen(screen); setGeometry(screen->geometry());
         setCursor(Qt::CrossCursor);
         connect(document_.get(),&AnnotationDocument::changed,this,[this]{dirty_=true; update();});
@@ -26,7 +27,8 @@ public:
         pending_.reset(); drawing_=drawing;
         const auto hwnd=reinterpret_cast<HWND>(winId());
         auto flags=GetWindowLongPtr(hwnd,GWL_EXSTYLE);
-        flags=drawing ? flags&~(WS_EX_TRANSPARENT|WS_EX_NOACTIVATE) : flags|WS_EX_TRANSPARENT|WS_EX_NOACTIVATE;
+        flags=drawing ? flags&~WS_EX_TRANSPARENT : flags|WS_EX_TRANSPARENT;
+        flags|=WS_EX_NOACTIVATE;
         SetWindowLongPtr(hwnd,GWL_EXSTYLE,flags);
         SetWindowPos(hwnd,nullptr,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_FRAMECHANGED);
         update();

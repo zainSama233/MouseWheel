@@ -12,7 +12,9 @@ class AppTests final : public QObject {
     Q_OBJECT
 private Q_SLOTS:
     void independentToolsAndSettings() {
-        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load()); QVERIFY(store.commit(defaultConfig()));
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());
+        auto config=defaultConfig(); config.slots[0]={actionKindName(ActionKind::ScreenAnnotation),{},ActionKind::ScreenAnnotation};
+        QVERIFY(store.commit(config));
         App app(store.path()); app.start(false);
         QMenu* menu=nullptr;
         for(auto* w:QApplication::topLevelWidgets()) if(auto* candidate=qobject_cast<QMenu*>(w))
@@ -49,9 +51,13 @@ private Q_SLOTS:
         SetCursorPos((bounds.left+bounds.right)/2,(bounds.top+bounds.bottom)/2);
         middle.mi.dwFlags=MOUSEEVENTF_MIDDLEUP; QCOMPARE(SendInput(1,&middle,sizeof(INPUT)),UINT(1)); held=false;
         QTRY_VERIFY(!wheel->isVisible()); QVERIFY(pin->isVisible());
-        QVERIFY(invoke(actionKindName(ActionKind::ScreenAnnotation)));
+        middle.mi.dwFlags=MOUSEEVENTF_MIDDLEDOWN; held=true;
+        QCOMPARE(SendInput(1,&middle,sizeof(INPUT)),UINT(1)); QTRY_VERIFY(wheel->isVisible());
+        GetWindowRect(reinterpret_cast<HWND>(wheel->winId()),&bounds);
+        SetCursorPos((bounds.left+bounds.right)/2,bounds.top+(bounds.bottom-bounds.top)/5);
+        middle.mi.dwFlags=MOUSEEVENTF_MIDDLEUP; QCOMPARE(SendInput(1,&middle,sizeof(INPUT)),UINT(1)); held=false;
         QWidget* toolbar=nullptr;
-        for(auto* w:QApplication::topLevelWidgets()) if(w->objectName()=="screen-annotation-toolbar") toolbar=w;
+        QTRY_VERIFY(([&]{for(auto* w:QApplication::topLevelWidgets()) if(w->objectName()=="screen-annotation-toolbar") toolbar=w; return toolbar!=nullptr;})());
         QVERIFY(toolbar); QVERIFY(toolbar->isVisible()); QVERIFY(pin->isVisible());
         QVERIFY(invoke(QStringLiteral("打开设置")));
         for(auto* w:QApplication::topLevelWidgets()) if(auto* s=qobject_cast<SettingsWindow*>(w)) settings=s;

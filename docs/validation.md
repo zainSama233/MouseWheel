@@ -53,4 +53,6 @@
 
 验证入口：[透明绘制、橡皮与撤销历史](../tests/annotation_tests.cpp)、[真实屏幕框选、原始像素、贴图缩放与 PNG](../tests/screenshot_tests.cpp)、[实时桌面与原生鼠标穿透](../tests/screen_annotation_tests.cpp)、[工具和设置并存](../tests/app_tests.cpp)、[轮盘隐藏后分发](../tests/desktop_tests.cpp)、[工具槽位保存](../tests/ui_tests.cpp)。
 
+2026-09-08：屏幕标注与应用级针对性回归通过，覆盖原生绘制后不抢前台、画笔／文字按钮与颜色／粗细下拉框点击、桌面穿透，以及中键轮盘启动标注。入口见上面的标注与应用测试。
+
 当前测试环境与未完成验收沿用本文对应章节。框选操作使用 Qt 测试事件；穿透与轮盘输入使用 Win32 SendInput。屏幕标注尚未完成混合 DPI 多屏、物理鼠标连续操作、HDR 和 macOS 验收。内置工具不承诺固定内存或延迟指标。

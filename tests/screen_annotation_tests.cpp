@@ -2,6 +2,8 @@
 #include <QPushButton>
 #include <QToolBar>
 #include <QAction>
+#include <QComboBox>
+#include <QAbstractItemView>
 #include <QScreen>
 #include <QScopeGuard>
 #include <Windows.h>
@@ -11,6 +13,50 @@ using namespace wheel;
 class ScreenAnnotationTests final : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void toolSelectionAfterNativeDrawing() {
+        POINT original{}; GetCursorPos(&original);
+        const auto restore=qScopeGuard([&]{SetCursorPos(original.x,original.y);});
+        ScreenAnnotationSession session; session.start(Theme::Dark);
+        QWidget* overlay=nullptr; QToolBar* toolbar=nullptr;
+        for(auto* w:QApplication::topLevelWidgets()) {
+            if(w->objectName()=="screen-annotation-overlay" && w->screen()==QApplication::primaryScreen()) overlay=w;
+            if(w->objectName()=="screen-annotation-toolbar") toolbar=qobject_cast<QToolBar*>(w);
+        }
+        QVERIFY(overlay); QVERIFY(toolbar); QVERIFY(QTest::qWaitForWindowExposed(toolbar));
+        auto click=[](QWidget* widget,QPoint point) {
+            auto* window=widget->window(); const auto local=widget->mapTo(window,point)*window->devicePixelRatioF();
+            POINT native{local.x(),local.y()}; ClientToScreen(reinterpret_cast<HWND>(window->winId()),&native);
+            SetCursorPos(native.x,native.y);
+            INPUT event{}; event.type=INPUT_MOUSE; event.mi.dwFlags=MOUSEEVENTF_LEFTDOWN;
+            QCOMPARE(SendInput(1,&event,sizeof(INPUT)),UINT(1)); QTest::qWait(100);
+            event.mi.dwFlags=MOUSEEVENTF_LEFTUP;
+            QCOMPARE(SendInput(1,&event,sizeof(INPUT)),UINT(1)); QTest::qWait(100);
+        };
+        for(auto* action:toolbar->actions()) {
+            if(!action->isCheckable() || action->objectName()=="desktop-mode") continue;
+            if(action->text()==QStringLiteral("文字")) continue;
+            click(overlay,QPoint(400,400));
+            QVERIFY2(GetForegroundWindow()!=reinterpret_cast<HWND>(overlay->winId()),"Drawing layer stole foreground activation");
+            auto* button=toolbar->widgetForAction(action); QVERIFY(button);
+            const int before=session.document().history().count();
+            QSignalSpy triggered(action,&QAction::triggered);
+            click(button,button->rect().center());
+            QCOMPARE(triggered.size(),1); QVERIFY(action->isChecked());
+            QCOMPARE(session.document().history().count(),before);
+        }
+        for(auto* action:toolbar->actions()) if(action->text()==QStringLiteral("文字")) {
+            auto* button=toolbar->widgetForAction(action); QVERIFY(button);
+            click(button,button->rect().center()); QVERIFY(action->isChecked());
+        }
+        for(auto* combo:toolbar->findChildren<QComboBox*>()) {
+            click(combo,combo->rect().center());
+            QTRY_VERIFY(combo->view()->isVisible());
+            const int index=(combo->currentIndex()+1)%combo->count();
+            click(combo->view()->viewport(),combo->view()->visualRect(combo->model()->index(index,0)).center());
+            QCOMPARE(combo->currentIndex(),index);
+        }
+        session.stop();
+    }
     void liveDesktopAndPassthrough() {
         POINT original{}; GetCursorPos(&original);
         const auto restore=qScopeGuard([&]{SetCursorPos(original.x,original.y);});
