@@ -2,7 +2,18 @@
 
 ## 文档职责
 
-产品范围、交互规则与验收目标以 [产品设计](product-design.md) 为唯一来源。本文记录技术选型、模块边界和验证策略，属于待实现方案，不代表能力已经验证。实现后，类型、配置字段和算法以代码与测试为准；本文保留架构决策并补充入口索引。
+产品范围、交互规则与验收目标以 [产品设计](product-design.md) 为唯一来源。本文记录技术选型、模块边界和验证策略。类型、配置字段和算法以代码与测试为准；已验证能力与发布边界以验证记录为准。
+
+## 实现入口
+
+- [交互模型与几何](../src/core/model.h)、[状态机](../src/core/interaction.h)
+- [配置存储](../src/config/config_store.h)
+- [平台接口](../src/platform/input_service.h)、[Windows 输入线程](../src/platform/windows_input.cpp)、[注入计划](../src/platform/windows_injection.cpp)
+- [轮盘](../src/ui/wheel_window.h)、[设置](../src/ui/settings_window.h)、[共享主题](../src/ui/theme.h)
+- [应用装配](../src/app.cpp)、[启动入口](../src/main.cpp)
+- [固定依赖版本](../toolchain.json)、[构建与打包](../scripts/build.ps1)、[测试入口](../scripts/test.ps1)
+- [实测结果与尚未验证的项目](validation.md)
+
 
 ## 技术选型
 
@@ -17,7 +28,7 @@
 
 Qt 提供界面与通用基础设施，原生接口处理系统输入和窗口特性。首版采用单进程，不引入 WebView、脚本运行时、数据库、后台服务或插件系统。
 
-Qt 补丁版本和工具链在原型通过后固定到构建配置。当前官方平台表列出 Windows 10 1809+、Windows 11 和 macOS 13+，并注明 Qt 6.12 将是最后支持 Windows 10 的版本。因此，Windows 10 支持期限和 macOS 最低版本须在发布基线确定前确认，依赖升级必须验证目标平台。依据：[Qt 平台支持](https://doc.qt.io/qt-6/supported-platforms.html)，核对日期为 2026-09-08。
+依赖版本由 [toolchain.json](../toolchain.json) 统一管理，构建入口见 [CMakeLists.txt](../CMakeLists.txt)。Windows 目标为 10 1809+／11 x64，当前实测基线见 [验证记录](validation.md)。Qt 平台约束参考 [Qt 6.8 Windows 支持](https://doc.qt.io/qt-6.8/windows.html)。macOS 的平台设计保留在本文，原生实现与发布验收尚未完成。
 
 ## 模块边界
 

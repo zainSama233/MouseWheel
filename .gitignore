@@ -1,0 +1,8 @@
+.tools/
+.tmp/
+build/
+dist/
+*.user
+__pycache__/
+aqtinstall.log
+artifacts/
