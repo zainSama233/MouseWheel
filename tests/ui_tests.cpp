@@ -12,12 +12,17 @@ using namespace wheel;
 class UiTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
-    void screenshotSlotPersists() {
+    void toolSlotPersists_data() {
+        QTest::addColumn<int>("actionKind");
+        QTest::newRow("pin")<<1; QTest::newRow("screen annotation")<<2;
+    }
+    void toolSlotPersists() {
+        QFETCH(int,actionKind);
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());
         SettingsWindow settings(store);
         auto* kind=settings.findChild<QComboBox*>("slot-kind-0"); QVERIFY(kind);
-        kind->setCurrentIndex(1);
-        QCOMPARE(store.current().slots[0].kind,ActionKind::Screenshot);
+        kind->setCurrentIndex(actionKind);
+        QCOMPARE(store.current().slots[0].kind,static_cast<ActionKind>(actionKind));
         QCOMPARE(store.current().slots[0].shortcut.key,0);
         ConfigStore reopened(store.path()); QVERIFY(reopened.load());
         QCOMPARE(reopened.current(),store.current());

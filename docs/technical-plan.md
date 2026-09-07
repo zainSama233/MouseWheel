@@ -10,7 +10,7 @@
 - [配置存储](../src/config/config_store.h)
 - [平台接口](../src/platform/input_service.h)、[Windows 输入线程](../src/platform/windows_input.cpp)、[注入计划](../src/platform/windows_injection.cpp)
 - [轮盘](../src/ui/wheel_window.h)、[设置](../src/ui/settings_window.h)、[共享主题](../src/ui/theme.h)
-- [标注模型与撤销](../src/tools/annotation_document.h)、[标注编辑器](../src/tools/image_editor.h)、[截图会话](../src/tools/screenshot_session.h)
+- [标注模型与撤销](../src/tools/annotation_document.h)、[独立屏幕标注](../src/tools/screen_annotation_session.h)、[贴图窗口](../src/tools/pinned_image.h)、[截图会话](../src/tools/screenshot_session.h)
 - [应用装配](../src/app.cpp)、[启动入口](../src/main.cpp)
 - [固定依赖版本](../toolchain.json)、[构建与打包](../scripts/build.ps1)、[测试入口](../scripts/test.ps1)
 - [实测结果与尚未验证的项目](validation.md)
@@ -43,7 +43,7 @@ Qt 提供界面与通用基础设施，原生接口处理系统输入和窗口�
 | 界面 | 展示轮盘和设置，提交配置修改，不直接操作钩子或发送输入 |
 | 配置管理 | 唯一配置写入口，统一校验、持久化和发布有效配置 |
 
-交互核心不依赖 QWidget、Win32 或 AppKit。两端复用事件与动作类型，原生键码只在平台边界转换。槽位动作类型由交互模型统一定义；截图在轮盘隐藏确认后转交 UI 层，不经过键盘注入。快捷键使用结构化按键与修饰键表示，显示文本由其派生，不通过显示字符串驱动执行。
+交互核心不依赖 QWidget、Win32 或 AppKit。两端复用事件与动作类型，原生键码只在平台边界转换。槽位动作类型由交互模型统一定义；内置工具在轮盘隐藏确认后转交 UI 层，不经过键盘注入。快捷键使用结构化按键与修饰键表示，显示文本由其派生，不通过显示字符串驱动执行。
 
 轮盘和设置样式从同一主题定义派生。设置草稿通过配置管理提交；活动轮盘持有触发时的配置快照，避免操作中途改变含义。
 
@@ -116,6 +116,8 @@ Windows 随包携带所需 Qt 插件和运行库，在未安装开发工具的�
 - macOS：[CGEvent](https://developer.apple.com/documentation/coregraphics/cgevent)、[NSPanel](https://developer.apple.com/documentation/appkit/nspanel)。
 
 
-## 截图依赖
+## 内置工具依赖
 
 标注命令使用 [QUndoStack](https://doc.qt.io/qt-6/qundostack.html)；裁剪保留屏幕抓取结果的原始像素，参见 [QScreen::grabWindow](https://doc.qt.io/qt-6/qscreen.html#grabWindow)。Windows 捕获前使用 [DwmFlush](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmflush) 同步本程序待提交画面；不使用固定延时。显示器坐标与捕获像素的映射以截图会话代码为准。PNG 经 QImageWriter 编码并由 QSaveFile 提交。
+
+屏幕标注使用实时透明覆盖层，鼠标穿透遵循 [Windows layered window hit testing](https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features#layered-windows)。浮动工具栏独立于覆盖层；状态与资源生命周期以 [屏幕标注会话](../src/tools/screen_annotation_session.cpp) 为准。产品交互参考 [MarkerOn](https://github.com/ifer47/markeron)。

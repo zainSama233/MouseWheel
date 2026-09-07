@@ -17,12 +17,12 @@ struct Shortcut {
     Modifiers modifiers = 0;
     bool operator==(const Shortcut&) const = default;
 };
-enum class ActionKind { Shortcut, Screenshot };
+enum class ActionKind { Shortcut, Screenshot, ScreenAnnotation };
 struct Slot {
     QString name;
     Shortcut shortcut;
     ActionKind kind=ActionKind::Shortcut;
-    bool enabled() const { return kind==ActionKind::Screenshot || shortcut.key!=0; }
+    bool enabled() const { return kind==ActionKind::Screenshot || kind==ActionKind::ScreenAnnotation || shortcut.key!=0; }
     bool operator==(const Slot&) const = default;
 };
 struct Config {
@@ -32,6 +32,7 @@ struct Config {
     std::array<Slot, 8> slots;
     bool operator==(const Config&) const = default;
 };
+QString actionKindName(ActionKind kind);
 Config defaultConfig();
 QString validate(const Config& config);
 bool supportedKey(int key);

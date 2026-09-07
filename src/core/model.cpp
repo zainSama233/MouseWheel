@@ -4,6 +4,14 @@
 #include <cmath>
 #include <numbers>
 namespace wheel {
+QString actionKindName(ActionKind kind) {
+    switch(kind) {
+    case ActionKind::Shortcut: return QStringLiteral("快捷键");
+    case ActionKind::Screenshot: return QStringLiteral("截图贴图");
+    case ActionKind::ScreenAnnotation: return QStringLiteral("屏幕标注");
+    }
+    return {};
+}
 Config defaultConfig() {
     Config c;
     c.slots = {{
@@ -12,8 +20,8 @@ Config defaultConfig() {
         {QStringLiteral("撤销"), {Qt::Key_Z, bit(Modifier::Control)}},
         {QStringLiteral("重做"), {Qt::Key_Y, bit(Modifier::Control)}},
         {QStringLiteral("全选"), {Qt::Key_A, bit(Modifier::Control)}},
-        {QStringLiteral("保存"), {Qt::Key_S, bit(Modifier::Control)}},
-        {QStringLiteral("区域截图"), {}, ActionKind::Screenshot},
+        {actionKindName(ActionKind::ScreenAnnotation), {}, ActionKind::ScreenAnnotation},
+        {actionKindName(ActionKind::Screenshot), {}, ActionKind::Screenshot},
         {QStringLiteral("剪切"), {Qt::Key_X, bit(Modifier::Control)}}
     }};
     return c;
@@ -39,9 +47,9 @@ QString validate(const Config& c) {
         return QStringLiteral("单键触发使用鼠标中键。");
     for (const auto& slot : c.slots) {
         if (slot.name.size() > 12) return QStringLiteral("槽位名称最多 12 个字符。");
-        if (slot.kind==ActionKind::Screenshot) {
+        if (slot.kind==ActionKind::Screenshot || slot.kind==ActionKind::ScreenAnnotation) {
             if(slot.name.trimmed().isEmpty() || slot.shortcut.key || slot.shortcut.modifiers)
-                return QStringLiteral("截图动作需要名称，不能包含快捷键。");
+                return QStringLiteral("内置工具需要名称，不能包含快捷键。");
             continue;
         }
         if(slot.kind!=ActionKind::Shortcut) return QStringLiteral("不支持的动作类型。");

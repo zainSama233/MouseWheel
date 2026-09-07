@@ -1,5 +1,5 @@
 #include "tools/screenshot_session.h"
-#include "tools/image_editor.h"
+#include "tools/pinned_image.h"
 #include "ui/theme.h"
 #include <utility>
 #include <algorithm>
@@ -63,9 +63,13 @@ private:
 ScreenshotSession::ScreenshotSession(QObject* parent) : QObject(parent) {}
 ScreenshotSession::~ScreenshotSession() {
     clearPickers();
-    if(editor_) { disconnect(editor_,nullptr,this,nullptr); delete editor_.data(); }
+    const auto pins=std::exchange(pins_,{});
+    for(auto* pin:pins) { disconnect(pin,nullptr,this,nullptr); delete pin; }
 }
-bool ScreenshotSession::active() const { return !pickers_.isEmpty() || !editor_.isNull(); }
+bool ScreenshotSession::active() const { return !pickers_.isEmpty(); }
+void ScreenshotSession::cancel() {
+    ++generation_; clearPickers(); Q_EMIT activeChanged();
+}
 void ScreenshotSession::clearPickers() {
     const auto pickers=std::exchange(pickers_,{});
     for(auto* picker:pickers) { disconnect(picker,nullptr,this,nullptr); delete picker; }
@@ -73,24 +77,26 @@ void ScreenshotSession::clearPickers() {
 bool ScreenshotSession::start(Theme theme,QString& error) {
     error.clear(); if(active()) return false;
     if(FAILED(DwmFlush())) { error=QStringLiteral("无法同步桌面画面，请重试。"); return false; }
+    const auto generation=++generation_;
     for(auto* screen:QGuiApplication::screens()) {
         const auto image=screen->grabWindow(0).toImage();
         if(image.isNull()) { clearPickers(); error=QStringLiteral("无法读取屏幕画面。"); return false; }
         auto* picker=new RegionPicker(screen,image,theme); pickers_.append(picker);
         connect(screen,&QScreen::geometryChanged,picker,&QDialog::reject);
         connect(screen,&QObject::destroyed,picker,&QDialog::reject);
-        connect(picker,&QDialog::finished,this,[this,picker,theme](int result){
+        connect(picker,&QDialog::finished,this,[this,picker,theme,generation](int result){
             const QPointer<QScreen> screen=picker->screen();
             QImage selected=result==QDialog::Accepted ? picker->selectedImage() : QImage();
-            for(auto* window:pickers_) window->hide();
-            QTimer::singleShot(0,this,[this,selected,theme,screen]{
-                if(pickers_.isEmpty()) return;
+            for(auto* window:pickers_) { disconnect(window,nullptr,this,nullptr); window->hide(); }
+            QTimer::singleShot(0,this,[this,selected,theme,screen,generation]{
+                if(generation!=generation_ || pickers_.isEmpty()) return;
                 clearPickers();
                 if(!selected.isNull()) {
-                    editor_=new ImageEditor(selected,theme);
-                    if(screen) { editor_->setScreen(screen); editor_->move(screen->availableGeometry().topLeft()+QPoint(24,24)); }
-                    connect(editor_,&QObject::destroyed,this,[this]{editor_=nullptr; Q_EMIT activeChanged();});
-                    editor_->show(); editor_->raise(); editor_->activateWindow();
+                    auto* pin=new PinnedImage(selected,theme);
+                    pins_.append(pin);
+                    if(screen) { pin->setScreen(screen); pin->move(screen->availableGeometry().topLeft()+QPoint(24,24)); }
+                    connect(pin,&QObject::destroyed,this,[this,pin]{pins_.removeAll(pin);});
+                    pin->show(); pin->raise(); pin->activateWindow();
                 }
                 Q_EMIT activeChanged();
             });

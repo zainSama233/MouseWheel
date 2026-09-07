@@ -1,44 +1,41 @@
 #include <QtTest>
-#include <QTemporaryDir>
 #include "tools/annotation_document.h"
 using namespace wheel;
 class AnnotationTests final : public QObject {
     Q_OBJECT
+    QImage render(const AnnotationDocument& document) {
+        QImage image(200,100,QImage::Format_ARGB32_Premultiplied); image.fill(Qt::transparent);
+        QPainter painter(&image); document.paint(painter); return image;
+    }
 private Q_SLOTS:
-    void penAndTextRender() {
-        QImage base(200,100,QImage::Format_ARGB32_Premultiplied); base.fill(Qt::white);
-        AnnotationDocument document(base);
-        Annotation pen; pen.points={{10,20},{100,20}}; pen.color=Qt::blue; pen.width=4;
-        document.add(pen); QCOMPARE(document.image().pixelColor(50,20),QColor(Qt::blue));
-        document.history().undo(); QCOMPARE(document.image(),base);
-        Annotation text; text.tool=AnnotationTool::Text; text.points={{20,50}}; text.text=QStringLiteral("截图");
-        document.add(text); QVERIFY(document.image()!=base);
-        document.history().undo(); QCOMPARE(document.image(),base);
-    }
-    void renderUndoAndBranch() {
-        QImage base(120,80,QImage::Format_ARGB32_Premultiplied); base.fill(Qt::white);
-        AnnotationDocument document(base);
-        Annotation a; a.tool=AnnotationTool::Rectangle; a.points={{10,10},{70,50}}; a.color=Qt::red; a.width=4;
-        document.add(a);
-        QVERIFY(document.image()!=base);
-        const auto painted=document.image();
-        document.history().undo(); QCOMPARE(document.image(),base);
-        document.history().redo(); QCOMPARE(document.image(),painted);
+    void transparentHistory() {
+        AnnotationDocument document; const auto empty=render(document);
+        Annotation a; a.points={{10,20},{100,20}}; a.color=Qt::blue;
+        document.add(a); const auto painted=render(document);
+        QCOMPARE(painted.pixelColor(50,20),QColor(Qt::blue)); QCOMPARE(painted.pixelColor(150,80).alpha(),0);
+        document.history().undo(); QCOMPARE(render(document),empty);
+        document.history().redo(); QCOMPARE(render(document),painted);
+        document.clear(); QCOMPARE(render(document),empty);
+        document.history().undo(); QCOMPARE(render(document),painted);
         document.history().undo(); a.tool=AnnotationTool::Arrow; document.add(a);
-        QVERIFY(!document.history().canRedo()); QVERIFY(document.image()!=base);
-        QCOMPARE(base.pixelColor(10,10),QColor(Qt::white));
+        QVERIFY(!document.history().canRedo()); QVERIFY(render(document)!=empty);
     }
-    void mosaicAndPng() {
-        QImage base(100,80,QImage::Format_ARGB32_Premultiplied);
-        for(int y=0;y<80;++y) for(int x=0;x<100;++x) base.setPixelColor(x,y,((x+y)%2)?Qt::white:Qt::black);
-        AnnotationDocument document(base);
-        Annotation a; a.tool=AnnotationTool::Mosaic; a.points={{10,10},{60,60}}; document.add(a);
-        QCOMPARE(document.image().pixelColor(0,0),base.pixelColor(0,0));
-        QVERIFY(document.image().copy(10,10,50,50)!=base.copy(10,10,50,50));
-        QTemporaryDir dir; QString error;
-        QVERIFY(document.savePng(dir.filePath("capture.png"),error));
-        QCOMPARE(QImage(dir.filePath("capture.png")).convertToFormat(document.image().format()),document.image());
-        QVERIFY(!document.savePng(dir.filePath("missing/capture.png"),error)); QVERIFY(!error.isEmpty());
+    void highlightAndEraser() {
+        AnnotationDocument document;
+        Annotation a; a.tool=AnnotationTool::Highlighter; a.points={{10,30},{150,30}}; a.width=4;
+        document.add(a); const auto highlighted=render(document);
+        QVERIFY(highlighted.pixelColor(50,30).alpha()>0); QVERIFY(highlighted.pixelColor(50,30).alpha()<150);
+        a.tool=AnnotationTool::Eraser; a.points={{50,10},{50,60}}; document.add(a);
+        QCOMPARE(render(document).pixelColor(50,30).alpha(),0);
+        document.history().undo(); QCOMPARE(render(document),highlighted);
+    }
+    void shapesAndText() {
+        for(auto tool:{AnnotationTool::Rectangle,AnnotationTool::Arrow,AnnotationTool::Text}) {
+            AnnotationDocument document; const auto empty=render(document);
+            Annotation a; a.tool=tool; a.points={{20,40},{150,80}}; a.text=QStringLiteral("标注");
+            document.add(a); QVERIFY(render(document)!=empty);
+            document.history().undo(); QCOMPARE(render(document),empty);
+        }
     }
 };
 QTEST_MAIN(AnnotationTests)

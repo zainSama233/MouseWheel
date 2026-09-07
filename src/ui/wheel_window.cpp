@@ -84,7 +84,7 @@ void WheelWindow::paintEvent(QPaintEvent*) {
         p.drawText(QRectF(center.x()-46,center.y()-20,92,22),Qt::AlignCenter,label);
         font.setPixelSize(10); font.setWeight(QFont::Normal); p.setFont(font);
         p.setPen(selected ? colors.selectedText : colors.muted);
-        p.drawText(QRectF(center.x()-47,center.y()+4,94,18),Qt::AlignCenter,slot.kind==ActionKind::Screenshot ? QStringLiteral("截图") : shortcutText(slot.shortcut));
+        p.drawText(QRectF(center.x()-47,center.y()+4,94,18),Qt::AlignCenter,slot.kind==ActionKind::Shortcut ? shortcutText(slot.shortcut) : actionKindName(slot.kind));
         p.setPen(Qt::NoPen);
     }
     p.setBrush(colors.background); p.drawEllipse(inner);

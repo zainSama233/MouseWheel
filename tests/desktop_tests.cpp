@@ -111,9 +111,14 @@ private Q_SLOTS:
         QTRY_VERIFY(!ready.empty()); QVERIFY(ready.last()[0].toBool());
         activateEditor();
     }
-    void screenshotDispatchAfterHide() {
+    void toolDispatchAfterHide_data() {
+        QTest::addColumn<int>("actionKind");
+        QTest::newRow("pin")<<1; QTest::newRow("screen annotation")<<2;
+    }
+    void toolDispatchAfterHide() {
+        QFETCH(int,actionKind);
         activateEditor(); if(QTest::currentTestFailed()) return;
-        auto config=defaultConfig(); config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};
+        auto config=defaultConfig(); config.slots[0]={QStringLiteral("工具"),{},static_cast<ActionKind>(actionKind)};
         input_->configure(config); QTest::qWait(40);
         QSignalSpy screenshot(input_.get(),&InputService::toolRequested);
         QApplication::clipboard()->setText("unchanged");
@@ -121,7 +126,7 @@ private Q_SLOTS:
         QCOMPARE(screenshot.size(),0);
         SetCursorPos(qRound(geometry_.center.x()),qRound(geometry_.center.y()-geometry_.radius*0.65));
         mouse(false,true); QTRY_COMPARE(screenshot.size(),1);
-        QCOMPARE(screenshot.first().first().value<ActionKind>(),ActionKind::Screenshot);
+        QCOMPARE(screenshot.first().first().value<ActionKind>(),static_cast<ActionKind>(actionKind));
         QVERIFY(!wheel_->isVisible()); QCOMPARE(QApplication::clipboard()->text(),QString("unchanged"));
     }
     void middleHoldCopiesAndCancels() {

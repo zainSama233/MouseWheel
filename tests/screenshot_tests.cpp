@@ -6,7 +6,9 @@
 #include <QAction>
 #include <QScreen>
 #include <QDir>
-#include "tools/image_editor.h"
+#include <QWheelEvent>
+#include <QTemporaryDir>
+#include "tools/pinned_image.h"
 #include "tools/screenshot_session.h"
 using namespace wheel;
 class ScreenshotTests final : public QObject {
@@ -18,29 +20,30 @@ private Q_SLOTS:
         const auto* data=QApplication::clipboard()->mimeData();
         for(const auto& format:data->formats()) original_->setData(format,data->data(format));
     }
-    void editCopyAndRelease_data() {
+    void pinCopySaveAndZoom_data() {
         QTest::addColumn<int>("theme");
         QTest::newRow("light")<<0; QTest::newRow("warm")<<1; QTest::newRow("dark")<<2;
     }
-    void editCopyAndRelease() {
+    void pinCopySaveAndZoom() {
         QFETCH(int,theme);
-        QImage image(600,400,QImage::Format_ARGB32_Premultiplied); image.fill(Qt::white);
-        QPointer<ImageEditor> editor=new ImageEditor(image,static_cast<Theme>(theme));
-        editor->show(); QVERIFY(QTest::qWaitForWindowExposed(editor));
-        auto* canvas=editor->findChild<AnnotationCanvas*>(); QVERIFY(canvas);
-        editor->findChild<QAction*>("tool-1")->trigger();
-        auto area=canvas->imageRect();
-        const auto start=(area.topLeft()+QPointF(40,40)).toPoint();
-        const auto end=(area.center()).toPoint();
-        QTest::mousePress(canvas,Qt::LeftButton,Qt::NoModifier,start);
-        QTest::mouseMove(canvas,end); QTest::mouseRelease(canvas,Qt::LeftButton,Qt::NoModifier,end);
-        QVERIFY(editor->document().image()!=image);
-        editor->findChild<QAction*>("undo")->trigger(); QCOMPARE(editor->document().image(),image);
-        editor->document().history().redo();
-        const auto expected=editor->document().image();
-        QDir().mkpath("artifacts"); QVERIFY(editor->grab().save(QString("artifacts/screenshot-editor-%1.png").arg(theme)));
-        editor->findChild<QAction*>("copy-image")->trigger();
-        QTRY_VERIFY(editor.isNull()); QCOMPARE(QApplication::clipboard()->image(),expected);
+        QImage image(600,400,QImage::Format_ARGB32_Premultiplied); image.fill(Qt::green);
+        QPointer<PinnedImage> pin=new PinnedImage(image,static_cast<Theme>(theme));
+        pin->show(); QVERIFY(QTest::qWaitForWindowExposed(pin));
+        const auto size=pin->size();
+        QWheelEvent wheel(QPointF(100,100),pin->mapToGlobal(QPoint(100,100)),{},QPoint(0,120),Qt::NoButton,Qt::NoModifier,Qt::NoScrollPhase,false);
+        QApplication::sendEvent(pin,&wheel); QVERIFY(pin->width()>size.width()); QCOMPARE(pin->image(),image);
+        const auto before=pin->pos();
+        QTest::mousePress(pin,Qt::LeftButton,Qt::NoModifier,QPoint(100,100));
+        QTest::mouseMove(pin,QPoint(130,120)); QTest::mouseRelease(pin,Qt::LeftButton,Qt::NoModifier,QPoint(130,120));
+        QVERIFY(pin->pos()!=before);
+        pin->findChild<QAction*>("copy-image")->trigger();
+        QCOMPARE(QApplication::clipboard()->image(),image); QVERIFY(pin->isVisible());
+        QTemporaryDir dir; QString error;
+        QVERIFY(pin->savePng(dir.filePath("pin.png"),error));
+        QCOMPARE(QImage(dir.filePath("pin.png")).convertToFormat(image.format()),image);
+        QVERIFY(!pin->savePng(dir.filePath("missing/pin.png"),error)); QVERIFY(!error.isEmpty());
+        QDir().mkpath("artifacts"); QVERIFY(pin->grab().save(QString("artifacts/pinned-image-%1.png").arg(theme)));
+        pin->close(); QTRY_VERIFY(pin.isNull());
     }
     void captureRealScreenAndCancel() {
         QWidget background; background.setWindowFlags(Qt::Window|Qt::WindowStaysOnTopHint);
@@ -61,17 +64,28 @@ private Q_SLOTS:
         const auto end=start+QPoint(160,120);
         QTest::mousePress(picker,Qt::LeftButton,Qt::NoModifier,start);
         QTest::mouseMove(picker,end); QTest::mouseRelease(picker,Qt::LeftButton,Qt::NoModifier,end);
-        QPointer<ImageEditor> editor;
-        QTRY_VERIFY(([&]{for(auto* widget:QApplication::topLevelWidgets()) if(auto* found=qobject_cast<ImageEditor*>(widget)) editor=found; return !editor.isNull();})());
-        const auto captured=editor->document().image();
+        QPointer<PinnedImage> editor;
+        QTRY_VERIFY(([&]{for(auto* widget:QApplication::topLevelWidgets()) if(auto* found=qobject_cast<PinnedImage*>(widget)) editor=found; return !editor.isNull();})());
+        const auto captured=editor->image();
         QCOMPARE(captured.pixelColor(captured.width()/2,captured.height()/2),expectedColor);
         const double scale=background.screen()->devicePixelRatio();
         QVERIFY(qAbs(captured.width()-qRound(160*scale))<=1);
         QVERIFY(qAbs(captured.height()-qRound(120*scale))<=1);
-        QVERIFY(session.active()); editor->close(); QTRY_VERIFY(!session.active());
+        QVERIFY(!session.active()); QVERIFY(editor->isVisible());
         QVERIFY(session.start(Theme::Light,error));
         for(auto* widget:QApplication::topLevelWidgets()) if(widget->objectName()=="region-picker") { QTest::keyClick(widget,Qt::Key_Escape); break; }
+        QTRY_VERIFY(!session.active()); QVERIFY(editor->isVisible());
+        QVERIFY(session.start(Theme::Warm,error));
+        for(auto* widget:QApplication::topLevelWidgets()) if(widget->objectName()=="region-picker") {
+            QTest::mousePress(widget,Qt::LeftButton,Qt::NoModifier,QPoint(100,100));
+            QTest::mouseRelease(widget,Qt::LeftButton,Qt::NoModifier,QPoint(200,180)); break;
+        }
         QTRY_VERIFY(!session.active());
+        QList<PinnedImage*> pins;
+        for(auto* widget:QApplication::topLevelWidgets()) if(auto* pin=qobject_cast<PinnedImage*>(widget)) pins.append(pin);
+        QCOMPARE(pins.size(),2); QVERIFY(editor->isVisible());
+        for(auto* pin:pins) if(pin!=editor.data()) pin->close();
+        editor->close(); QTRY_VERIFY(editor.isNull());
     }
     void cleanupTestCase() { QApplication::clipboard()->setMimeData(original_.release()); }
 };

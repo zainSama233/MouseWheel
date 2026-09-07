@@ -51,7 +51,7 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
         names_[i]->setPlaceholderText(QStringLiteral("空槽位"));
         names_[i]->setAccessibleName(QStringLiteral("槽位 %1 名称").arg(i+1));
         kinds_[i]=new QComboBox; kinds_[i]->setObjectName(QString("slot-kind-%1").arg(i));
-        kinds_[i]->addItems({QStringLiteral("快捷键"),QStringLiteral("区域截图")});
+        for(auto kind:{ActionKind::Shortcut,ActionKind::Screenshot,ActionKind::ScreenAnnotation}) kinds_[i]->addItem(actionKindName(kind));
         shortcuts_[i] = new QKeySequenceEdit;
         shortcuts_[i]->setMaximumSequenceLength(1);
         shortcuts_[i]->setFinishingKeyCombinations({});
@@ -63,7 +63,7 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
         connect(kinds_[i],&QComboBox::currentIndexChanged,this,[this,i](int index){
             if(populating_) return;
             shortcuts_[i]->setVisible(index==0);
-            if(index==1) { shortcuts_[i]->clear(); names_[i]->setText(QStringLiteral("区域截图")); }
+            if(index!=0) { shortcuts_[i]->clear(); names_[i]->setText(actionKindName(static_cast<ActionKind>(index))); }
             else if(shortcuts_[i]->keySequence().isEmpty()) names_[i]->clear();
             submit();
         });
