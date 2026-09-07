@@ -18,6 +18,7 @@ private:
     QComboBox* modifier_;
     QComboBox* button_;
     QComboBox* theme_;
+    std::array<QComboBox*,8> kinds_{};
     std::array<QLineEdit*,8> names_{};
     std::array<QKeySequenceEdit*,8> shortcuts_{};
     QLabel* status_;

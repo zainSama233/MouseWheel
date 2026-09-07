@@ -15,6 +15,11 @@ App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_u
     for (int i=0;i<8;++i) { p.save(); p.translate(24,24); p.rotate(i*45); p.drawRoundedRect(-2,-18,4,8,2,2); p.restore(); }
     p.end(); tray_.setIcon(QIcon(icon)); QApplication::setWindowIcon(QIcon(icon));
     menu_->addAction(QStringLiteral("打开设置"),this,&App::openSettings);
+    menu_->addAction(QStringLiteral("区域截图"),this,&App::takeScreenshot);
+    connect(&input_,&InputService::toolRequested,this,[this](ActionKind kind){
+        if(kind==ActionKind::Screenshot) takeScreenshot();
+    });
+    connect(&screenshot_,&ScreenshotSession::activeChanged,this,&App::updateState);
     pauseAction_ = menu_->addAction(QStringLiteral("暂停")); pauseAction_->setCheckable(true);
     connect(pauseAction_,&QAction::toggled,this,[this](bool checked){ paused_ = checked; updateState(); });
     menu_->addAction(QStringLiteral("重新连接输入"),&input_,&InputService::restart);
@@ -50,7 +55,14 @@ void App::start(bool showSettings) {
     updateState();
     if (showSettings || !exists || !loaded) openSettings();
 }
+void App::takeScreenshot() {
+    if(screenshot_.active() || settings_) return;
+    QString error;
+    if(!screenshot_.start(config_.current().theme,error) && !error.isEmpty())
+        tray_.showMessage(QStringLiteral("截图失败"),error,QSystemTrayIcon::Warning);
+}
 void App::openSettings() {
+    if(screenshot_.active()) return;
     if (!settings_) {
         settings_ = new SettingsWindow(config_);
         connect(settings_,&QObject::destroyed,this,[this]{ settings_ = nullptr; updateState(); });
@@ -58,7 +70,7 @@ void App::openSettings() {
     updateState(); settings_->show(); settings_->raise(); settings_->activateWindow();
 }
 void App::updateState() {
-    const bool paused = paused_ || settings_ || config_.blocked();
+    const bool paused = paused_ || settings_ || screenshot_.active() || config_.blocked();
     input_.pause(paused);
     const QString state = !available_ ? QStringLiteral("输入不可用") :
                           paused ? QStringLiteral("已暂停") : QStringLiteral("运行中");

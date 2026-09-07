@@ -5,6 +5,7 @@
 #include "config/config_store.h"
 #include "platform/input_service.h"
 #include "ui/wheel_window.h"
+#include "tools/screenshot_session.h"
 class QAction;
 class QMenu;
 namespace wheel {
@@ -17,10 +18,12 @@ public:
     void start(bool showSettings);
 private:
     void openSettings();
+    void takeScreenshot();
     void updateState();
     ConfigStore config_;
     InputService input_;
     WheelWindow wheel_;
+    ScreenshotSession screenshot_;
     QSystemTrayIcon tray_;
     std::unique_ptr<QMenu> menu_;
     QPointer<SettingsWindow> settings_;

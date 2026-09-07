@@ -9,7 +9,7 @@ struct Decision {
     quint64 session = 0;
     quintptr target = 0;
     int selection = -1;
-    std::optional<Shortcut> action;
+    std::optional<Slot> action;
 };
 class Interaction final {
 public:

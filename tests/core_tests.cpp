@@ -8,6 +8,15 @@ class CoreTests : public QObject {
         return c;
     }
 private Q_SLOTS:
+    void screenshotIsExecutableWithoutShortcut() {
+        auto config=defaultConfig();
+        config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};
+        QVERIFY(validate(config).isEmpty());
+        Interaction core; auto g=Geometry::fit({500,500},{0,0,1000,1000},1);
+        QVERIFY(core.press(MouseButton::Middle,0,config,g,1).show);
+        auto result=core.release(MouseButton::Middle,g.center+QPointF(0,-100));
+        QVERIFY(result.action); QCOMPARE(result.action->kind,ActionKind::Screenshot);
+    }
     void middleHoldDefaultAndPairing() {
         const auto c = defaultConfig();
         QCOMPARE(static_cast<unsigned>(c.modifier), 0u);
@@ -57,7 +66,7 @@ private Q_SLOTS:
         QVERIFY(end.consumed);
         QVERIFY(end.hide);
         QVERIFY(end.action.has_value());
-        QCOMPARE(end.action->key, combinationConfig().slots[2].shortcut.key);
+        QCOMPARE(end.action->shortcut.key, combinationConfig().slots[2].shortcut.key);
         QCOMPARE(end.target, quintptr(123));
         QCOMPARE(end.session, id);
     }

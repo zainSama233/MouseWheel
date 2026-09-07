@@ -72,19 +72,19 @@ void WheelWindow::paintEvent(QPaintEvent*) {
         wedge.arcTo(outer,112.5-i*45,-45);
         wedge.arcTo(inner,67.5-i*45,45);
         wedge.closeSubpath();
-        const bool selected = i==selection_ && config_.slots[i].shortcut.key;
+        const bool selected = i==selection_ && config_.slots[i].enabled();
         p.fillPath(wedge,selected ? colors.selected : colors.surface);
         const double a = i*std::numbers::pi/4;
         const QPointF center(108*std::sin(a),-108*std::cos(a));
         p.setPen(selected ? colors.selectedText : colors.text);
         QFont font = p.font(); font.setPixelSize(14); font.setWeight(QFont::DemiBold); p.setFont(font);
         const auto& slot = config_.slots[i];
-        QString label = slot.shortcut.key ? slot.name : QStringLiteral("空");
+        QString label = slot.enabled() ? slot.name : QStringLiteral("空");
         label = p.fontMetrics().elidedText(label,Qt::ElideRight,90);
         p.drawText(QRectF(center.x()-46,center.y()-20,92,22),Qt::AlignCenter,label);
         font.setPixelSize(10); font.setWeight(QFont::Normal); p.setFont(font);
         p.setPen(selected ? colors.selectedText : colors.muted);
-        p.drawText(QRectF(center.x()-47,center.y()+4,94,18),Qt::AlignCenter,shortcutText(slot.shortcut));
+        p.drawText(QRectF(center.x()-47,center.y()+4,94,18),Qt::AlignCenter,slot.kind==ActionKind::Screenshot ? QStringLiteral("截图") : shortcutText(slot.shortcut));
         p.setPen(Qt::NoPen);
     }
     p.setBrush(colors.background); p.drawEllipse(inner);

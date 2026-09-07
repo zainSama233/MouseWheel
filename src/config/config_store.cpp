@@ -30,7 +30,9 @@ bool ConfigStore::load() {
             if (!value["name"].isString() || !value["key"].isDouble() ||
                 !value["modifiers"].isDouble()) { valid = false; break; }
             candidate.slots[i] = {value["name"].toString(),
-                {value["key"].toInt(-1), static_cast<unsigned>(value["modifiers"].toInt(-1))}};
+                {value["key"].toInt(-1), static_cast<unsigned>(value["modifiers"].toInt(-1))},
+                static_cast<ActionKind>(value["kind"].toInt(0))};
+            if (value.contains("kind") && (!value["kind"].isDouble() || value["kind"].toDouble()!=value["kind"].toInt(-1))) { valid=false; break; }
         }
     }
     if (!valid || !validate(candidate).isEmpty()) {
@@ -46,7 +48,7 @@ bool ConfigStore::commit(const Config& config) {
     if (!error_.isEmpty()) return false;
     QJsonArray slots;
     for (const auto& slot : config.slots)
-        slots.append(QJsonObject{{"name",slot.name}, {"key",slot.shortcut.key},
+        slots.append(QJsonObject{{"name",slot.name}, {"kind",static_cast<int>(slot.kind)}, {"key",slot.shortcut.key},
                                  {"modifiers",static_cast<int>(slot.shortcut.modifiers)}});
     QJsonObject obj{{"version",1}, {"modifier",static_cast<int>(config.modifier)},
                     {"button",static_cast<int>(config.button)}, {"theme",static_cast<int>(config.theme)},

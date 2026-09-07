@@ -6,6 +6,13 @@ using namespace wheel;
 class ConfigTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void screenshotRoundTripAndValidation() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
+        auto config=defaultConfig(); config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};
+        QVERIFY(store.commit(config)); ConfigStore reopened(store.path()); QVERIFY(reopened.load());
+        QCOMPARE(reopened.current(),config);
+        config.slots[0].shortcut.key=Qt::Key_C; QVERIFY(!store.commit(config));
+    }
     void singleMiddleRoundTrip() {
         QTemporaryDir dir;
         ConfigStore store(dir.filePath("config.json"));

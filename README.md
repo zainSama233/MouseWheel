@@ -14,6 +14,12 @@ Windows 鼠标快捷键轮盘。首次运行打开设置，点击「完成」后
 
 解压整个便携包后运行 `MouseWheel.exe`。保留随包的 DLL 与 `platforms` 目录；程序目录需要可写。
 
+## 截图
+
+从托盘选择「区域截图」，或在设置中将任一槽位的动作设为「区域截图」。鼠标框选后进入标注编辑器，支持画笔、矩形、箭头、文字、马赛克、撤销／重做、复制与保存 PNG。取消按钮或 Esc 退出。单次选区位于一个显示器内。
+
+截图期间轮盘暂停，退出后恢复。现有配置保留，新配置的默认动作见 [defaultConfig](src/core/model.cpp)。
+
 ## 开发
 
 Windows 10 1809+／Windows 11 x64，Python 3.11+。依赖版本见 [toolchain.json](toolchain.json)，Qt SDK 安装到系统盘的 Qt 目录。
@@ -21,8 +27,8 @@ Windows 10 1809+／Windows 11 x64，Python 3.11+。依赖版本见 [toolchain.js
 ```powershell
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1
-./scripts/test.ps1 -Pattern '^(core|config|injection)$'
-./scripts/test.ps1 -Pattern '^(ui|desktop)$'
+./scripts/test.ps1 -Pattern '^(core|config|annotation|injection)$'
+./scripts/test.ps1 -Pattern '^(ui|desktop|screenshot)$'
 ./scripts/build.ps1 -Package
 ```
 

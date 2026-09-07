@@ -17,9 +17,12 @@ struct Shortcut {
     Modifiers modifiers = 0;
     bool operator==(const Shortcut&) const = default;
 };
+enum class ActionKind { Shortcut, Screenshot };
 struct Slot {
     QString name;
     Shortcut shortcut;
+    ActionKind kind=ActionKind::Shortcut;
+    bool enabled() const { return kind==ActionKind::Screenshot || shortcut.key!=0; }
     bool operator==(const Slot&) const = default;
 };
 struct Config {
@@ -43,3 +46,5 @@ struct Geometry {
 }
 Q_DECLARE_METATYPE(wheel::Config)
 Q_DECLARE_METATYPE(wheel::Geometry)
+
+Q_DECLARE_METATYPE(wheel::ActionKind)

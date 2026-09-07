@@ -12,6 +12,16 @@ using namespace wheel;
 class UiTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void screenshotSlotPersists() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());
+        SettingsWindow settings(store);
+        auto* kind=settings.findChild<QComboBox*>("slot-kind-0"); QVERIFY(kind);
+        kind->setCurrentIndex(1);
+        QCOMPARE(store.current().slots[0].kind,ActionKind::Screenshot);
+        QCOMPARE(store.current().slots[0].shortcut.key,0);
+        ConfigStore reopened(store.path()); QVERIFY(reopened.load());
+        QCOMPARE(reopened.current(),store.current());
+    }
     void selectsSingleMiddleAndPersists() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
         auto c = defaultConfig(); c.modifier = Modifier::Control; c.button = MouseButton::Right;
@@ -37,7 +47,7 @@ private Q_SLOTS:
         settings.show();
         QVERIFY(QTest::qWaitForWindowExposed(&settings));
         auto combos = settings.findChildren<QComboBox*>();
-        QCOMPARE(combos.size(),3);
+        QCOMPARE(combos.size(),11);
         combos[2]->setCurrentIndex(2);
         QCOMPARE(store.current().theme,Theme::Dark);
         QList<QLineEdit*> names;

@@ -55,9 +55,10 @@ public:
         if (paused_ || locked_ || sleeping_ || core_.session() != session ||
             !IsWindow(reinterpret_cast<HWND>(pending.target)) ||
             GetForegroundWindow() != reinterpret_cast<HWND>(pending.target)) return;
+        if (pending.action->kind==ActionKind::Screenshot) { Q_EMIT service_->toolRequested(pending.action->kind); return; }
         refreshPhysical();
         QString error;
-        if (!win::sendShortcut(*pending.action, physical_, error)) Q_EMIT service_->failure(error);
+        if (!win::sendShortcut(pending.action->shortcut, physical_, error)) Q_EMIT service_->failure(error);
     }
 private:
     void refreshPhysical() {

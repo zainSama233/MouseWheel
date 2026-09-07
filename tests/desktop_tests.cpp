@@ -111,6 +111,19 @@ private Q_SLOTS:
         QTRY_VERIFY(!ready.empty()); QVERIFY(ready.last()[0].toBool());
         activateEditor();
     }
+    void screenshotDispatchAfterHide() {
+        activateEditor(); if(QTest::currentTestFailed()) return;
+        auto config=defaultConfig(); config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};
+        input_->configure(config); QTest::qWait(40);
+        QSignalSpy screenshot(input_.get(),&InputService::toolRequested);
+        QApplication::clipboard()->setText("unchanged");
+        const auto previous=shown_; mouse(true,true); QTRY_VERIFY(shown_>previous);
+        QCOMPARE(screenshot.size(),0);
+        SetCursorPos(qRound(geometry_.center.x()),qRound(geometry_.center.y()-geometry_.radius*0.65));
+        mouse(false,true); QTRY_COMPARE(screenshot.size(),1);
+        QCOMPARE(screenshot.first().first().value<ActionKind>(),ActionKind::Screenshot);
+        QVERIFY(!wheel_->isVisible()); QCOMPARE(QApplication::clipboard()->text(),QString("unchanged"));
+    }
     void middleHoldCopiesAndCancels() {
         activateEditor(); if (QTest::currentTestFailed()) return;
         input_->configure(defaultConfig()); QTest::qWait(40);

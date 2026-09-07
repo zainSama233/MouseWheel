@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     QApplication application(argc,argv);
     application.setApplicationName("MouseWheel");
-    application.setApplicationVersion("0.1.0");
+    application.setApplicationVersion(QStringLiteral(MOUSEWHEEL_VERSION));
     application.setQuitOnLastWindowClosed(false);
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("鼠标快捷强化"));

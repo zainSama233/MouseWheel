@@ -43,12 +43,15 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     auto* grid = new QGridLayout; grid->setVerticalSpacing(10);
     grid->addWidget(new QLabel(QStringLiteral("槽位")),0,0);
     grid->addWidget(new QLabel(QStringLiteral("名称")),0,1);
-    grid->addWidget(new QLabel(QStringLiteral("快捷键")),0,2);
+    grid->addWidget(new QLabel(QStringLiteral("动作")),0,2);
+    grid->addWidget(new QLabel(QStringLiteral("快捷键")),0,3);
     for (int i=0;i<8;++i) {
         auto* number = new QLabel(QString::number(i+1)); number->setObjectName("muted");
         names_[i] = new QLineEdit; names_[i]->setObjectName(QString("slot-name-%1").arg(i)); names_[i]->setMaxLength(12);
         names_[i]->setPlaceholderText(QStringLiteral("空槽位"));
         names_[i]->setAccessibleName(QStringLiteral("槽位 %1 名称").arg(i+1));
+        kinds_[i]=new QComboBox; kinds_[i]->setObjectName(QString("slot-kind-%1").arg(i));
+        kinds_[i]->addItems({QStringLiteral("快捷键"),QStringLiteral("区域截图")});
         shortcuts_[i] = new QKeySequenceEdit;
         shortcuts_[i]->setMaximumSequenceLength(1);
         shortcuts_[i]->setFinishingKeyCombinations({});
@@ -56,11 +59,19 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
         shortcuts_[i]->setToolTip(QStringLiteral("字母、数字、F1–F24、方向键或导航键"));
         auto* clear = new QPushButton(QStringLiteral("清空"));
         grid->addWidget(number,i+1,0); grid->addWidget(names_[i],i+1,1);
-        grid->addWidget(shortcuts_[i],i+1,2); grid->addWidget(clear,i+1,3);
+        grid->addWidget(kinds_[i],i+1,2); grid->addWidget(shortcuts_[i],i+1,3); grid->addWidget(clear,i+1,4);
+        connect(kinds_[i],&QComboBox::currentIndexChanged,this,[this,i](int index){
+            if(populating_) return;
+            shortcuts_[i]->setVisible(index==0);
+            if(index==1) { shortcuts_[i]->clear(); names_[i]->setText(QStringLiteral("区域截图")); }
+            else if(shortcuts_[i]->keySequence().isEmpty()) names_[i]->clear();
+            submit();
+        });
         connect(names_[i],&QLineEdit::editingFinished,this,&SettingsWindow::submit);
         connect(shortcuts_[i],&QKeySequenceEdit::editingFinished,this,&SettingsWindow::submit);
         connect(clear,&QPushButton::clicked,this,[this,i]{
-            names_[i]->clear(); shortcuts_[i]->clear(); submit();
+            { const QSignalBlocker blocker(kinds_[i]); kinds_[i]->setCurrentIndex(0); }
+            shortcuts_[i]->setVisible(true); names_[i]->clear(); shortcuts_[i]->clear(); submit();
         });
     }
     body->addLayout(grid,1);
@@ -101,6 +112,8 @@ void SettingsWindow::populate() {
     theme_->setCurrentIndex(static_cast<int>(config.theme));
     for (int i=0;i<8;++i) {
         names_[i]->setText(config.slots[i].name);
+        kinds_[i]->setCurrentIndex(static_cast<int>(config.slots[i].kind));
+        shortcuts_[i]->setVisible(config.slots[i].kind==ActionKind::Shortcut);
         shortcuts_[i]->setKeySequence(QKeySequence(shortcutText(config.slots[i].shortcut),QKeySequence::NativeText));
     }
     setStyleSheet(settingsStyle(config.theme)); preview_->preview(config);
@@ -134,7 +147,7 @@ void SettingsWindow::submit() {
                 status_->setText(QStringLiteral("请使用主键盘录制快捷键。")); status_->setProperty("failed",true); return;
             }
         }
-        draft.slots[i] = {names_[i]->text().trimmed(),shortcut};
+        draft.slots[i] = {names_[i]->text().trimmed(),shortcut,static_cast<ActionKind>(kinds_[i]->currentIndex())};
     }
     const bool ok = !store_.blocked() && draft == store_.current() ? true : store_.commit(draft);
     status_->setProperty("failed",!ok);

@@ -15,8 +15,8 @@ Decision Interaction::release(MouseButton b, QPointF position) {
     if (!active_) return result;
     result.hide = true;
     const int selected = geometry_.hit(position);
-    if (selected >= 0 && snapshot_.slots[selected].shortcut.key)
-        result.action = snapshot_.slots[selected].shortcut;
+    if (selected >= 0 && snapshot_.slots[selected].enabled())
+        result.action = snapshot_.slots[selected];
     active_ = false;
     return result;
 }
