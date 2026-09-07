@@ -29,12 +29,14 @@ bool supportedKey(int key) {
            key == Qt::Key_Escape;
 }
 QString validate(const Config& c) {
-    if (c.modifier != Modifier::Control && c.modifier != Modifier::Alt &&
+    if (c.modifier != Modifier::None && c.modifier != Modifier::Control && c.modifier != Modifier::Alt &&
         c.modifier != Modifier::Shift && c.modifier != Modifier::Meta)
         return QStringLiteral("请选择一个触发修饰键。");
     if (c.button < MouseButton::Right || c.button > MouseButton::Forward ||
         c.theme < Theme::Light || c.theme > Theme::Dark)
         return QStringLiteral("配置包含不支持的选项。");
+    if (c.modifier == Modifier::None && c.button != MouseButton::Middle)
+        return QStringLiteral("单键触发使用鼠标中键。");
     for (const auto& slot : c.slots) {
         if (slot.name.size() > 12) return QStringLiteral("槽位名称最多 12 个字符。");
         if (!slot.shortcut.key) {

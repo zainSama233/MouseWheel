@@ -3,7 +3,28 @@
 using namespace wheel;
 class CoreTests : public QObject {
     Q_OBJECT
+    static Config combinationConfig() {
+        auto c = defaultConfig(); c.modifier = Modifier::Control; c.button = MouseButton::Right;
+        return c;
+    }
 private Q_SLOTS:
+    void middleHoldDefaultAndPairing() {
+        const auto c = defaultConfig();
+        QCOMPARE(static_cast<unsigned>(c.modifier), 0u);
+        QCOMPARE(c.button, MouseButton::Middle);
+        QVERIFY(validate(c).isEmpty());
+        Interaction core;
+        auto g = Geometry::fit({500,500}, {0,0,1920,1080}, 1);
+        QVERIFY(!core.press(MouseButton::Right, 0, c, g, 1).consumed);
+        QVERIFY(core.press(MouseButton::Middle, 0, c, g, 1).show);
+        QVERIFY(core.release(MouseButton::Middle, g.center + QPointF(0,-100)).action);
+        QVERIFY(!core.release(MouseButton::Middle, {}).consumed);
+        QVERIFY(core.press(MouseButton::Middle, 0, c, g, 1).show);
+        QVERIFY(core.setPaused(true).hide);
+        const auto cancelled = core.release(MouseButton::Middle, g.center + QPointF(0,-100));
+        QVERIFY(cancelled.consumed); QVERIFY(!cancelled.action);
+        QVERIFY(!core.press(MouseButton::Middle, 0, c, g, 1).consumed);
+    }
     void geometry() {
         auto g = Geometry::fit({2, 2}, {0, 0, 1920, 1080}, 1.5);
         QCOMPARE(g.center, QPointF(246, 246));
@@ -18,14 +39,14 @@ private Q_SLOTS:
     }
     void normalInputPasses() {
         Interaction core;
-        auto c = defaultConfig();
+        auto c = combinationConfig();
         QVERIFY(!core.press(MouseButton::Right, 0, c, {}, 1).consumed);
         QVERIFY(!core.release(MouseButton::Right, {}).consumed);
         QVERIFY(!core.escape(true).consumed);
     }
     void finalPositionAndSnapshot() {
         Interaction core;
-        auto c = defaultConfig();
+        auto c = combinationConfig();
         auto g = Geometry::fit({500,500}, {0,0,1920,1080}, 1);
         auto start = core.press(MouseButton::Right, bit(Modifier::Control), c, g, 123);
         QVERIFY(start.show);
@@ -36,13 +57,13 @@ private Q_SLOTS:
         QVERIFY(end.consumed);
         QVERIFY(end.hide);
         QVERIFY(end.action.has_value());
-        QCOMPARE(end.action->key, defaultConfig().slots[2].shortcut.key);
+        QCOMPARE(end.action->key, combinationConfig().slots[2].shortcut.key);
         QCOMPARE(end.target, quintptr(123));
         QCOMPARE(end.session, id);
     }
     void pairedCancellation() {
         Interaction core;
-        const auto c = defaultConfig();
+        const auto c = combinationConfig();
         core.press(MouseButton::Right, bit(Modifier::Control), c, {}, 1);
         QVERIFY(core.escape(true).consumed);
         QVERIFY(core.escape(true).consumed);
@@ -55,14 +76,14 @@ private Q_SLOTS:
     }
     void pausedPairing() {
         Interaction core;
-        auto c = defaultConfig();
+        auto c = combinationConfig();
         core.press(MouseButton::Right, bit(Modifier::Control), c, {}, 1);
         QVERIFY(core.setPaused(true).hide);
         QVERIFY(core.release(MouseButton::Right, {}).consumed);
         QVERIFY(!core.press(MouseButton::Right, bit(Modifier::Control), c, {}, 1).consumed);
     }
     void emptyAndCenterCancel() {
-        auto c = defaultConfig();
+        auto c = combinationConfig();
         c.slots[0] = {};
         auto g = Geometry::fit({500,500}, {0,0,1000,1000}, 1);
         Interaction core;
@@ -74,12 +95,12 @@ private Q_SLOTS:
     void extraModifierDoesNotTrigger() {
         Interaction core;
         QVERIFY(!core.press(MouseButton::Right, bit(Modifier::Control) | bit(Modifier::Shift),
-                            defaultConfig(), {}, 1).consumed);
+                            combinationConfig(), {}, 1).consumed);
     }
     void repeatDoesNotStartNewSession() {
         Interaction core;
-        auto first = core.press(MouseButton::Right, bit(Modifier::Control), defaultConfig(), {}, 1);
-        auto repeat = core.press(MouseButton::Right, bit(Modifier::Control), defaultConfig(), {}, 1);
+        auto first = core.press(MouseButton::Right, bit(Modifier::Control), combinationConfig(), {}, 1);
+        auto repeat = core.press(MouseButton::Right, bit(Modifier::Control), combinationConfig(), {}, 1);
         QVERIFY(repeat.consumed);
         QVERIFY(!repeat.show);
         QCOMPARE(core.session(), first.session);

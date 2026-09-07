@@ -13,6 +13,7 @@
 #include <QKeySequence>
 #include <QScrollArea>
 #include <QScreen>
+#include <QSignalBlocker>
 namespace wheel {
 SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     setAttribute(Qt::WA_DeleteOnClose);
@@ -26,6 +27,8 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     auto* title = new QLabel(QStringLiteral("鼠标快捷强化")); title->setObjectName("title"); layout->addWidget(title);
     auto* toolbar = new QHBoxLayout;
     modifier_ = new QComboBox; button_ = new QComboBox; theme_ = new QComboBox;
+    modifier_->addItem(QStringLiteral("无修饰键"),static_cast<int>(Modifier::None));
+    modifier_->setObjectName("trigger-modifier"); button_->setObjectName("trigger-button");
     for (auto [name,value] : {std::pair{"Ctrl",Modifier::Control},{"Alt",Modifier::Alt},
                              {"Shift",Modifier::Shift},{"Win",Modifier::Meta}})
         modifier_->addItem(QString::fromLatin1(name),static_cast<int>(value));
@@ -34,6 +37,8 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     toolbar->addWidget(new QLabel(QStringLiteral("按住"))); toolbar->addWidget(modifier_);
     toolbar->addWidget(new QLabel("+")); toolbar->addWidget(button_);
     toolbar->addStretch(); toolbar->addWidget(theme_); layout->addLayout(toolbar);
+    auto* triggerHint = new QLabel(QStringLiteral("单键模式占用中键点击；滚轮照常使用。暂停后恢复中键原功能。"));
+    triggerHint->setObjectName("muted"); layout->addWidget(triggerHint);
     auto* body = new QHBoxLayout;
     auto* grid = new QGridLayout; grid->setVerticalSpacing(10);
     grid->addWidget(new QLabel(QStringLiteral("槽位")),0,0);
@@ -92,6 +97,7 @@ void SettingsWindow::populate() {
     const auto& config = store_.current();
     modifier_->setCurrentIndex(modifier_->findData(static_cast<int>(config.modifier)));
     button_->setCurrentIndex(static_cast<int>(config.button));
+    button_->setEnabled(config.modifier != Modifier::None);
     theme_->setCurrentIndex(static_cast<int>(config.theme));
     for (int i=0;i<8;++i) {
         names_[i]->setText(config.slots[i].name);
@@ -106,6 +112,11 @@ void SettingsWindow::submit() {
     if (populating_) return;
     Config draft;
     draft.modifier = static_cast<Modifier>(modifier_->currentData().toInt());
+    if (draft.modifier == Modifier::None) {
+        const QSignalBlocker blocker(button_);
+        button_->setCurrentIndex(static_cast<int>(MouseButton::Middle));
+    }
+    button_->setEnabled(draft.modifier != Modifier::None);
     draft.button = static_cast<MouseButton>(button_->currentIndex());
     draft.theme = static_cast<Theme>(theme_->currentIndex());
     for (int i=0;i<8;++i) {

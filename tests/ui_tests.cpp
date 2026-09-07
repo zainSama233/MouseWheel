@@ -12,6 +12,24 @@ using namespace wheel;
 class UiTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void selectsSingleMiddleAndPersists() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
+        auto c = defaultConfig(); c.modifier = Modifier::Control; c.button = MouseButton::Right;
+        QVERIFY(store.commit(c));
+        SettingsWindow settings(store);
+        auto* modifier = settings.findChild<QComboBox*>("trigger-modifier");
+        auto* button = settings.findChild<QComboBox*>("trigger-button");
+        QVERIFY(modifier); QVERIFY(button);
+        modifier->setCurrentIndex(modifier->findData(static_cast<int>(Modifier::None)));
+        QCOMPARE(store.current().modifier, Modifier::None);
+        QCOMPARE(store.current().button, MouseButton::Middle);
+        QVERIFY(!button->isEnabled());
+        ConfigStore reopened(store.path()); QVERIFY(reopened.load());
+        QCOMPARE(reopened.current(), store.current());
+        modifier->setCurrentIndex(modifier->findData(static_cast<int>(Modifier::Control)));
+        QVERIFY(button->isEnabled()); button->setCurrentIndex(static_cast<int>(MouseButton::Right));
+        QCOMPARE(store.current().button, MouseButton::Right);
+    }
     void savesThemeAndAction() {
         QTemporaryDir dir;
         ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());

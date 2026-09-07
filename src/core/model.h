@@ -7,7 +7,7 @@
 #include <array>
 #include <optional>
 namespace wheel {
-enum class Modifier : unsigned { Control = 1, Alt = 2, Shift = 4, Meta = 8 };
+enum class Modifier : unsigned { None = 0, Control = 1, Alt = 2, Shift = 4, Meta = 8 };
 using Modifiers = unsigned;
 constexpr Modifiers bit(Modifier m) { return static_cast<Modifiers>(m); }
 enum class MouseButton { Right, Middle, Back, Forward };
@@ -23,8 +23,8 @@ struct Slot {
     bool operator==(const Slot&) const = default;
 };
 struct Config {
-    Modifier modifier = Modifier::Control;
-    MouseButton button = MouseButton::Right;
+    Modifier modifier = Modifier::None;
+    MouseButton button = MouseButton::Middle;
     Theme theme = Theme::Light;
     std::array<Slot, 8> slots;
     bool operator==(const Config&) const = default;

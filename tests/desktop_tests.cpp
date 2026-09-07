@@ -18,6 +18,10 @@
 using namespace wheel;
 class DesktopTests : public QObject {
     Q_OBJECT
+    static Config combinationConfig() {
+        auto c = defaultConfig(); c.modifier = Modifier::Control; c.button = MouseButton::Right;
+        return c;
+    }
     std::unique_ptr<InputService> input_;
     std::unique_ptr<WheelWindow> wheel_;
     QPlainTextEdit editor_;
@@ -25,12 +29,15 @@ class DesktopTests : public QObject {
     std::unique_ptr<QMimeData> clipboard_;
     Geometry geometry_;
     quint64 shown_ = 0;
-    int rightDown_ = 0, rightUp_ = 0;
+    int rightDown_ = 0, rightUp_ = 0, middleDown_ = 0, middleUp_ = 0;
     QHash<quint64,qint64> onset_;
     QList<double> latency_;
     bool eventFilter(QObject* object, QEvent* event) override {
         if (event->type()==QEvent::MouseButtonPress || event->type()==QEvent::MouseButtonRelease) {
             auto* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button()==Qt::MiddleButton) {
+                if (event->type()==QEvent::MouseButtonPress) ++middleDown_; else ++middleUp_;
+            }
             if (mouseEvent->button()==Qt::RightButton) {
                 if (event->type()==QEvent::MouseButtonPress) ++rightDown_; else ++rightUp_;
             }
@@ -43,9 +50,10 @@ class DesktopTests : public QObject {
         QCOMPARE(SendInput(1,&event,sizeof(INPUT)),UINT(1));
         QTest::qWait(12);
     }
-    static void mouse(bool down) {
+    static void mouse(bool down, bool middle=false) {
         INPUT event{}; event.type = INPUT_MOUSE;
-        event.mi.dwFlags = down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP;
+        event.mi.dwFlags = middle ? (down ? MOUSEEVENTF_MIDDLEDOWN : MOUSEEVENTF_MIDDLEUP) :
+                                  (down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP);
         event.mi.dwExtraInfo = 0x54455354;
         QCOMPARE(SendInput(1,&event,sizeof(INPUT)),UINT(1));
         QTest::qWait(12);
@@ -99,9 +107,33 @@ private Q_SLOTS:
         connect(input_.get(),&InputService::hideWheel,wheel_.get(),&WheelWindow::dismiss);
         connect(wheel_.get(),&WheelWindow::hidden,input_.get(),&InputService::hidden);
         QSignalSpy ready(input_.get(),&InputService::listening);
-        input_->start(defaultConfig());
+        input_->start(combinationConfig());
         QTRY_VERIFY(!ready.empty()); QVERIFY(ready.last()[0].toBool());
         activateEditor();
+    }
+    void middleHoldCopiesAndCancels() {
+        activateEditor(); if (QTest::currentTestFailed()) return;
+        input_->configure(defaultConfig()); QTest::qWait(40);
+        const auto beforeDown = middleDown_, beforeUp = middleUp_;
+        QApplication::clipboard()->setText("before");
+        auto previous = shown_; mouse(true, true); QTRY_VERIFY(shown_ > previous);
+        SetCursorPos(qRound(geometry_.center.x()), qRound(geometry_.center.y()-geometry_.radius*0.65));
+        mouse(false, true);
+        QTRY_COMPARE(QApplication::clipboard()->text(), QString("MouseWheel desktop test"));
+        QCOMPARE(GetForegroundWindow(), reinterpret_cast<HWND>(editor_.winId()));
+        QCOMPARE(middleDown_, beforeDown); QCOMPARE(middleUp_, beforeUp);
+        previous = shown_; mouse(true, true); QTRY_VERIFY(shown_ > previous);
+        QApplication::clipboard()->setText("unchanged");
+        SetCursorPos(qRound(geometry_.center.x()), qRound(geometry_.center.y()));
+        mouse(false, true); QTRY_VERIFY(!wheel_->isVisible());
+        QCOMPARE(QApplication::clipboard()->text(), QString("unchanged"));
+        previous = shown_; mouse(true, true); QTRY_VERIFY(shown_ > previous);
+        key(VK_ESCAPE,true); key(VK_ESCAPE,false); mouse(false,true);
+        QCOMPARE(middleUp_,beforeUp);
+        input_->pause(true); QTest::qWait(30);
+        mouse(true,true); mouse(false,true);
+        QTRY_COMPARE(middleDown_,beforeDown+1); QTRY_COMPARE(middleUp_,beforeUp+1);
+        QVERIFY(!(GetAsyncKeyState(VK_MBUTTON)&0x8000));
     }
     void copyKeepsForegroundAndModifier() {
         activateEditor(); if (QTest::currentTestFailed()) return; QApplication::clipboard()->setText("before");
@@ -165,7 +197,7 @@ private Q_SLOTS:
     }
     void modifierNeutralization() {
         activateEditor();
-        auto config=defaultConfig(); config.modifier=Modifier::Alt;
+        auto config=combinationConfig(); config.modifier=Modifier::Alt;
         input_->configure(config); QTest::qWait(40);
         QApplication::clipboard()->setText("before");
         begin(VK_LMENU); chooseCopy();
@@ -174,7 +206,7 @@ private Q_SLOTS:
         QVERIFY(!(GetAsyncKeyState(VK_LCONTROL)&0x8000));
         key(VK_LMENU,false);
         QCOMPARE(GetForegroundWindow(),reinterpret_cast<HWND>(editor_.winId()));
-        input_->configure(defaultConfig()); QTest::qWait(40);
+        input_->configure(combinationConfig()); QTest::qWait(40);
     }
     void physicalReleaseBeforeExecution() {
         activateEditor(); if (QTest::currentTestFailed()) return; QApplication::clipboard()->setText("before");
@@ -195,11 +227,11 @@ private Q_SLOTS:
     }
     void activeConfigurationIsSnapshot() {
         activateEditor(); if (QTest::currentTestFailed()) return; QApplication::clipboard()->setText("before"); begin();
-        auto config=defaultConfig(); config.slots[0].shortcut.key=Qt::Key_X;
+        auto config=combinationConfig(); config.slots[0].shortcut.key=Qt::Key_X;
         input_->configure(config); QTest::qWait(40); chooseCopy(); key(VK_LCONTROL,false);
         QTRY_COMPARE(QApplication::clipboard()->text(),QString("MouseWheel desktop test"));
         QCOMPARE(editor_.toPlainText(),QString("MouseWheel desktop test"));
-        input_->configure(defaultConfig()); QTest::qWait(40);
+        input_->configure(combinationConfig()); QTest::qWait(40);
     }
     void edgeGeometryMatchesNativeWindow() {
         activateEditor();
@@ -245,8 +277,8 @@ private Q_SLOTS:
     }
     void cleanup() {
         if (!input_) return;
-        mouse(false); key(VK_LCONTROL,false); key(VK_RCONTROL,false); key(VK_LMENU,false);
-        input_->configure(defaultConfig()); input_->pause(false); QTest::qWait(30);
+        mouse(false,true); mouse(false); key(VK_LCONTROL,false); key(VK_RCONTROL,false); key(VK_LMENU,false);
+        input_->configure(combinationConfig()); input_->pause(false); QTest::qWait(30);
     }
     void copiesFromWindowsNotepad() {
         QProcess notepad;

@@ -6,6 +6,16 @@ using namespace wheel;
 class ConfigTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void singleMiddleRoundTrip() {
+        QTemporaryDir dir;
+        ConfigStore store(dir.filePath("config.json"));
+        auto c = defaultConfig(); c.modifier = static_cast<Modifier>(0); c.button = MouseButton::Middle;
+        QVERIFY(store.commit(c));
+        ConfigStore reopened(store.path()); QVERIFY(reopened.load());
+        QCOMPARE(reopened.current(), c);
+        c.button = MouseButton::Right; QVERIFY(!store.commit(c));
+        QCOMPARE(store.current(), reopened.current());
+    }
     void roundTrip() {
         QTemporaryDir dir;
         ConfigStore store(dir.filePath("config.json"));

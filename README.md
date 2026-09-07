@@ -2,7 +2,8 @@
 
 Windows 鼠标快捷键轮盘。首次运行打开设置，点击「完成」后在系统托盘常驻。
 
-- 默认按住 **Ctrl + 鼠标右键** 呼出，移动到动作后松开右键执行。
+- 默认按住 **鼠标中键** 呼出，移动到动作后松开中键执行。中键点击由轮盘占用，滚轮照常使用；暂停后恢复中键原功能。
+- 已有配置可在设置中选择「无修饰键」切换到单独中键；也可选择修饰键与鼠标键组合。
 - 中心、空槽位或 Esc 取消。轮盘外松开同样取消。
 - 托盘提供设置、暂停／恢复、重新连接输入和退出。
 - 设置自动保存到程序旁的 `config.json`；设置窗口打开期间暂停触发。
@@ -34,16 +35,3 @@ Windows 10 1809+／Windows 11 x64，Python 3.11+。依赖版本见 [toolchain.js
 - [产品设计](docs/product-design.md)
 - [技术方案与代码入口](docs/technical-plan.md)
 - [验证记录与交付边界](docs/validation.md)
-
-## 双键触发实验
-
-独立实验不改变正式程序的触发方式，结果与适用边界见 [验证记录](docs/validation.md#双键触发探针)。测试会短暂操作鼠标并打开受控窗口，请勿同时使用键鼠；结束后恢复鼠标位置和前台窗口。
-
-```powershell
-. ./scripts/toolchain.ps1
-& $cmake -S . -B build -DBUILD_INPUT_PROBE=ON
-& $cmake --build build --config Release --target chord_probe_tests
-./scripts/test.ps1 -Pattern '^chord_probe$'
-```
-
-该目标默认不构建，关闭方式为 CMake 配置 `-DBUILD_INPUT_PROBE=OFF`。
