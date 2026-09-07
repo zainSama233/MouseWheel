@@ -34,3 +34,16 @@ Windows 10 1809+／Windows 11 x64，Python 3.11+。依赖版本见 [toolchain.js
 - [产品设计](docs/product-design.md)
 - [技术方案与代码入口](docs/technical-plan.md)
 - [验证记录与交付边界](docs/validation.md)
+
+## 双键触发实验
+
+独立实验不改变正式程序的触发方式，结果与适用边界见 [验证记录](docs/validation.md#双键触发探针)。测试会短暂操作鼠标并打开受控窗口，请勿同时使用键鼠；结束后恢复鼠标位置和前台窗口。
+
+```powershell
+. ./scripts/toolchain.ps1
+& $cmake -S . -B build -DBUILD_INPUT_PROBE=ON
+& $cmake --build build --config Release --target chord_probe_tests
+./scripts/test.ps1 -Pattern '^chord_probe$'
+```
+
+该目标默认不构建，关闭方式为 CMake 配置 `-DBUILD_INPUT_PROBE=OFF`。
