@@ -12,8 +12,10 @@ public:
     SlotEditor(int index,QWidget* parent=nullptr);
     void setSlot(const Slot& slot);
     Slot slot() const;
+    void setGroupsAllowed(bool allowed);
 Q_SIGNALS:
     void edited();
+    void editGroup();
 private:
     void refreshAutomaticIcon();
     WebsiteIcon* websiteIcon_=nullptr;
@@ -29,6 +31,7 @@ private:
     QSpinBox* opacity_;
     QStackedWidget *pages_,*icons_;
     ShortcutEditor* shortcut_;
+    GroupAction group_;
     QByteArray image_;
     bool loading_=false;
 };

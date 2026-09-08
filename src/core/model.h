@@ -23,7 +23,7 @@ struct Shortcut {
     Modifiers modifiers = 0;
     bool operator==(const Shortcut&) const = default;
 };
-enum class ActionKind { Shortcut, Screenshot, ScreenAnnotation, Application, Website, Folder, Command, Ocr, Window, System };
+enum class ActionKind { Shortcut, Screenshot, ScreenAnnotation, Application, Website, Folder, Command, Ocr, Window, System, Group };
 struct ScreenshotAction { bool operator==(const ScreenshotAction&) const = default; };
 struct AnnotationAction { bool operator==(const AnnotationAction&) const = default; };
 struct ApplicationAction {
@@ -60,7 +60,13 @@ struct SystemAction {
     SystemOperation operation=SystemOperation::Mute;
     bool operator==(const SystemAction&) const = default;
 };
-using Action=std::variant<Shortcut,ScreenshotAction,AnnotationAction,ApplicationAction,WebsiteAction,FolderAction,CommandAction,OcrAction,WindowAction,SystemAction>;
+struct Slot;
+struct GroupAction {
+    GroupAction();
+    QList<Slot> slots;
+    bool operator==(const GroupAction&) const;
+};
+using Action=std::variant<Shortcut,ScreenshotAction,AnnotationAction,ApplicationAction,WebsiteAction,FolderAction,CommandAction,OcrAction,WindowAction,SystemAction,GroupAction>;
 enum class IconSource { Builtin, Program, Image, Automatic };
 struct IconSpec {
     IconSource source=IconSource::Builtin; QString value="keyboard"; QByteArray image;
@@ -70,11 +76,12 @@ struct BuiltinIcon { QString id,title; };
 const QList<BuiltinIcon>& builtinIcons();
 IconSpec suggestedIcon(const Action& action);
 
-enum class WheelShape { Sector, Circle, Hexagon };
+enum class WheelShape { Original, Circle, HexagonHive, Capsule };
 inline constexpr double WheelRadius=164;
 inline constexpr double CenterRadius=42;
-const QPainterPath& slotPath(WheelShape shape,int index);
-QPointF slotCenter(int index);
+const QPainterPath& slotPath(WheelShape shape,int index,int count=8);
+QPointF slotCenter(int index,int count=8,WheelShape shape=WheelShape::Circle);
+bool supportedSlotCount(int count);
 struct Slot {
     QString name;
     Action action=Shortcut{};
@@ -97,7 +104,7 @@ struct Config {
     Modifier modifier = Modifier::None;
     MouseButton button = MouseButton::Middle;
     Theme theme = Theme::Light;
-    std::array<Slot, 8> slots;
+    QList<Slot> slots=QList<Slot>(8);
     WheelShape shape=WheelShape::Circle;
     QByteArray centerImage;
     bool operator==(const Config&) const = default;
@@ -114,7 +121,7 @@ struct Geometry {
     QPointF center;
     double radius = WheelRadius;
     static Geometry fit(QPointF cursor, QRectF available, double scale);
-    int hit(QPointF position,WheelShape shape=WheelShape::Circle) const;
+    int hit(QPointF position,WheelShape shape=WheelShape::Circle,int count=8) const;
 };
 }
 Q_DECLARE_METATYPE(wheel::Config)

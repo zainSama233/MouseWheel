@@ -41,6 +41,7 @@ App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_u
         if (reason == QSystemTrayIcon::DoubleClick || reason == QSystemTrayIcon::Trigger) openSettings();
     });
     connect(&input_,&InputService::showWheel,&wheel_,&WheelWindow::present);
+    connect(&input_,&InputService::levelChanged,&wheel_,&WheelWindow::changeLevel);
     connect(&input_,&InputService::selection,&wheel_,&WheelWindow::select);
     connect(&input_,&InputService::hideWheel,&wheel_,&WheelWindow::dismiss);
     connect(&wheel_,&WheelWindow::hidden,&input_,&InputService::hidden);

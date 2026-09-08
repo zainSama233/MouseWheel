@@ -29,7 +29,7 @@ WheelWindow::WheelWindow(bool overlay, QWidget* parent) : QWidget(parent), openi
 }
 void WheelWindow::present(quint64 session, Config config, Geometry geometry, const QString& name) {
     if (session <= session_) return;
-    painted_ = false; session_ = session; applyConfig(config); selection_ = -1;
+    painted_ = false; session_ = session; group_=-1;rootConfig_=config;applyLevel(); selection_ = -1;
     opening_.stop(); opacity_=0.15;
     for (auto* screen : QGuiApplication::screens()) {
         if (screen->name() != name) continue;
@@ -48,6 +48,10 @@ void WheelWindow::present(quint64 session, Config config, Geometry geometry, con
                  qRound(geometry.radius*2),SWP_NOACTIVATE | SWP_SHOWWINDOW);
     opening_.start(); update();
 }
+void WheelWindow::changeLevel(quint64 session,int group) {
+    if(session!=session_ || group==group_) return;
+    group_=group;applyLevel();selection_=-1;opening_.stop();opacity_=0.15;opening_.start();update();
+}
 void WheelWindow::select(quint64 session, int index) {
     if (session != session_ || selection_ == index) return;
     selection_ = index; update();
@@ -56,20 +60,27 @@ void WheelWindow::dismiss(quint64 session) {
     if (session >= session_) { session_ = session; opening_.stop(); hide(); }
     Q_EMIT hidden(session);
 }
+void WheelWindow::applyLevel() {
+    auto config=rootConfig_;
+    if(group_>=0) {config.slots=std::get<GroupAction>(rootConfig_.slots[group_].action).slots;config.centerImage.clear();}
+    applyConfig(config);
+}
 void WheelWindow::applyConfig(const Config& config) {
-    if(cached_ && config_==config) return;
+    if(cached_ && cachedGroup_==group_ && config_==config) return;
+    cachedGroup_=group_;
     config_=config; const auto colors=themeColors(config.theme);
-    for(int i=0;i<8;++i) {
+    icons_.resize(config.slots.size());selectedIcons_.resize(config.slots.size());
+    for(int i=0;i<config.slots.size();++i) {
         icons_[i]=actionIcon(config.slots[i],config.slots[i].enabled()?colors.text:colors.muted);
         selectedIcons_[i]=actionIcon(config.slots[i],colors.selectedText);
     }
-    cancelIcon_=symbolIcon("x",colors.muted);
+    cancelIcon_=symbolIcon(group_>=0?"undo-2":"x",colors.muted);
     centerImage_=QPixmap::fromImage(decodeImageAsset(config.centerImage)); cached_=true;
 }
-void WheelWindow::preview(const Config& config) { applyConfig(config); update(); }
+void WheelWindow::preview(const Config& config,int group) { rootConfig_=config;group_=group;applyLevel();update(); }
 int WheelWindow::previewSlotAt(QPointF position) const {
     const QPointF local((position.x()/width()-.5)*WheelRadius*2,(position.y()/height()-.5)*WheelRadius*2);
-    return Geometry{{0,0}}.hit(local,config_.shape);
+    return Geometry{{0,0}}.hit(local,config_.shape,config_.slots.size());
 }
 void WheelWindow::mousePressEvent(QMouseEvent* event) {
     if(overlay_ || event->button()!=Qt::LeftButton) return;
@@ -105,11 +116,11 @@ void WheelWindow::paintEvent(QPaintEvent*) {
     p.setOpacity(opacity_);
     const double scale=0.94+0.06*opacity_; p.scale(scale,scale);
     p.setPen(Qt::NoPen);
-    for(int i=0;i<8;++i) {
+    for(int i=0;i<config_.slots.size();++i) {
         const bool selected=i==selection_ && (!overlay_ || config_.slots[i].enabled());
-        const auto& path=slotPath(config_.shape,i);
+        const auto& path=slotPath(config_.shape,i,config_.slots.size());
         p.fillPath(path,selected?colors.selected:colors.surface);
-        const auto center=slotCenter(i);
+        const auto center=slotCenter(i,config_.slots.size(),config_.shape);
         const auto& slot=config_.slots[i];
         const bool label=slot.enabled() && slot.showLabel;
         const QRect iconArea(qRound(center.x()-15),qRound(center.y()-(label?24:15)),30,30);
@@ -117,7 +128,8 @@ void WheelWindow::paintEvent(QPaintEvent*) {
         if(label) {
             auto font=p.font(); font.setPixelSize(10); p.setFont(font);
             p.setPen(selected?colors.selectedText:colors.muted);
-            const auto text=p.fontMetrics().elidedText(slot.name,Qt::ElideRight,60);
+            const int textWidth=config_.slots.size()==12 || config_.shape==WheelShape::HexagonHive?42:60;
+            const auto text=p.fontMetrics().elidedText(slot.name,Qt::ElideRight,textWidth);
             p.drawText(QRectF(center.x()-30,center.y()+10,60,16),Qt::AlignCenter,text);
             p.setPen(Qt::NoPen);
         }
@@ -130,6 +142,11 @@ void WheelWindow::paintEvent(QPaintEvent*) {
         const int diameter=qRound((CenterRadius-4)*2);
         auto image=centerImage_.scaled(diameter,diameter,Qt::KeepAspectRatioByExpanding,Qt::SmoothTransformation);
         p.drawPixmap(-image.width()/2,-image.height()/2,image); p.setClipping(false);
+    }
+    if(group_>=0) {
+        auto font=p.font();font.setPixelSize(10);p.setFont(font);p.setPen(colors.muted);
+        p.drawText(QRectF(-38,14,76,16),Qt::AlignCenter,QStringLiteral("返回"));
+        p.drawText(QRectF(-34,-32,68,16),Qt::AlignCenter,p.fontMetrics().elidedText(rootConfig_.slots[group_].name,Qt::ElideRight,64));
     }
     p.end();
     if (overlay_ && !painted_) { painted_ = true; Q_EMIT firstPaint(session_,monotonicNanos()); }

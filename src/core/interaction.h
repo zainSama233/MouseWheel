@@ -6,6 +6,7 @@ struct Decision {
     bool show = false;
     bool hide = false;
     bool selectionChanged = false;
+    bool levelChanged = false;
     quint64 session = 0;
     quintptr target = 0;
     int selection = -1;
@@ -16,7 +17,11 @@ public:
     Decision press(MouseButton button, Modifiers modifiers, const Config& config,
                    const Geometry& geometry, quintptr target, bool permitted=true);
     Decision release(MouseButton button, QPointF position);
-    Decision move(QPointF position);
+    Decision move(QPointF position,qint64 nowMs=0);
+    Decision advance(qint64 nowMs);
+    qint64 hoverDeadline() const { return hoverDeadline_; }
+    int groupIndex() const { return group_; }
+    const QList<Slot>& slots() const;
     Decision escape(bool down);
     Decision cancel();
     Decision setPaused(bool paused);
@@ -32,6 +37,10 @@ private:
     quint64 session_ = 0;
     quintptr target_ = 0;
     int selection_ = -1;
+    int group_=-1;
+    qint64 hoverDeadline_=-1;
+    QPointF position_,navigationOrigin_;
+    bool navigationArmed_=true;
     Config snapshot_;
     Geometry geometry_;
 };

@@ -9,6 +9,9 @@
 #include <QStringList>
 #include "core/image_asset.h"
 namespace wheel {
+GroupAction::GroupAction():slots(8) {}
+bool GroupAction::operator==(const GroupAction&) const = default;
+bool supportedSlotCount(int count) { return count==4 || count==8 || count==12; }
 QString actionKindName(ActionKind kind) {
     switch(kind) {
     case ActionKind::Shortcut: return QStringLiteral("快捷键");
@@ -20,6 +23,7 @@ QString actionKindName(ActionKind kind) {
     case ActionKind::Command: return QStringLiteral("运行命令");
     case ActionKind::Ocr: return QStringLiteral("屏幕 OCR");
     case ActionKind::Window: return QStringLiteral("窗口管理");
+    case ActionKind::Group: return QStringLiteral("子轮盘");
     case ActionKind::System: return QStringLiteral("系统控制");
     }
     return {};
@@ -60,8 +64,9 @@ QString validate(const Config& c) {
         return QStringLiteral("配置包含不支持的选项。");
     if (c.modifier == Modifier::None && c.button != MouseButton::Middle)
         return QStringLiteral("单键触发使用鼠标中键。");
-    if(c.shape<WheelShape::Sector || c.shape>WheelShape::Hexagon) return QStringLiteral("不支持的槽位形状。");
+    if(c.shape<WheelShape::Original || c.shape>WheelShape::Capsule) return QStringLiteral("不支持的槽位形状。");
     if(!c.centerImage.isEmpty() && decodeImageAsset(c.centerImage).isNull()) return QStringLiteral("中心图片无效。");
+    if(!supportedSlotCount(c.slots.size())) return QStringLiteral("轮盘支持 4、8 或 12 个槽位。");
     for(const auto& slot:c.slots) {
         const auto error=validate(slot); if(!error.isEmpty()) return error;
     }
@@ -108,6 +113,7 @@ IconSpec suggestedIcon(const Action& action) {
     case ActionKind::ScreenAnnotation: name="pencil"; break;
     case ActionKind::Application: return {IconSource::Program,std::get<ApplicationAction>(action).path,{}};
     case ActionKind::Website: name="globe"; break;
+    case ActionKind::Group:
     case ActionKind::Folder: name="folder"; break;
     case ActionKind::Command: name="terminal"; break;
     case ActionKind::Ocr: name="scan"; break;
@@ -146,7 +152,13 @@ QString validate(const Action& action) {
     const auto validUrl=[](const QString& text) { const QUrl url(text,QUrl::StrictMode); return text.size()<=2048 && !text.contains(' ') && url.isValid() && !url.host().isEmpty() && (url.scheme()=="https" || url.scheme()=="http"); };
     return std::visit([&](const auto& a)->QString {
         using T=std::decay_t<decltype(a)>;
-        if constexpr(std::is_same_v<T,Shortcut>) {
+        if constexpr(std::is_same_v<T,GroupAction>) {
+            if(!supportedSlotCount(a.slots.size())) return QStringLiteral("子轮盘支持 4、8 或 12 个槽位。");
+            for(const auto& child:a.slots) {
+                if(child.kind()==ActionKind::Group) return QStringLiteral("子轮盘不能再嵌套分组。");
+                const auto error=validate(child); if(!error.isEmpty()) return error;
+            }
+        } else if constexpr(std::is_same_v<T,Shortcut>) {
             if((!a.key && a.modifiers) || (a.key && (!supportedKey(a.key) || (a.modifiers&~15u)))) return QStringLiteral("快捷键无效。");
         } else if constexpr(std::is_same_v<T,ApplicationAction>) {
             if(!QFileInfo(a.path).isAbsolute() || a.path.size()>2048 || a.arguments.size()>8192 || (!a.directory.isEmpty() && !QFileInfo(a.directory).isAbsolute())) return QStringLiteral("请选择文件及有效工作目录。");
@@ -181,38 +193,54 @@ Geometry Geometry::fit(QPointF p, QRectF area, double scale) {
     return {{std::clamp(p.x(), area.left()+r, area.right()-r),
              std::clamp(p.y(), area.top()+r, area.bottom()-r)}, r};
 }
-QPointF slotCenter(int index) {
-    const double angle=index*std::numbers::pi/4;
-    return {112*std::sin(angle),-112*std::cos(angle)};
+QPointF slotCenter(int index,int count,WheelShape shape) {
+    if(shape==WheelShape::HexagonHive) {
+        static const std::array<QPointF,12> axial{{{1,-2},{2,-2},{2,-1},{2,0},{1,1},{0,2},{-1,2},{-2,2},{-2,1},{-2,0},{-1,-1},{0,-2}}};
+        const auto cell=axial[index*12/count];
+        return {std::sqrt(3.0)*32*(cell.x()+cell.y()/2),48*cell.y()};
+    }
+    const double angle=index*2*std::numbers::pi/count;
+    const double distance=count==12?120:112;
+    return {distance*std::sin(angle),-distance*std::cos(angle)};
 }
-const QPainterPath& slotPath(WheelShape shape,int index) {
+const QPainterPath& slotPath(WheelShape shape,int index,int count) {
     static const auto paths=[] {
-        std::array<std::array<QPainterPath,8>,3> result;
-        for(int kind=0;kind<3;++kind) for(int slot=0;slot<8;++slot) {
-            auto& path=result[kind][slot]; const auto center=slotCenter(slot);
-            if(kind==int(WheelShape::Circle)) path.addEllipse(center,36,36);
-            else if(kind==int(WheelShape::Hexagon)) {
-                for(int vertex=0;vertex<6;++vertex) {
-                    const double angle=vertex*std::numbers::pi/3;
-                    const auto point=center+QPointF(39*std::cos(angle),39*std::sin(angle));
-                    if(vertex==0) path.moveTo(point); else path.lineTo(point);
+        std::array<std::array<std::array<QPainterPath,12>,3>,4> result;
+        for(int kind=0;kind<4;++kind) for(int countIndex=0;countIndex<3;++countIndex) {
+            const int count=(countIndex+1)*4;
+            for(int slot=0;slot<count;++slot) {
+                auto& path=result[kind][countIndex][slot];const auto shape=WheelShape(kind);
+                const auto center=slotCenter(slot,count,shape);
+                if(shape==WheelShape::Circle) {
+                    const double r=count==12?27:36;path.addEllipse(center,r,r);
+                } else if(shape==WheelShape::HexagonHive) {
+                    for(int vertex=0;vertex<6;++vertex) {
+                        const double angle=(30+vertex*60)*std::numbers::pi/180;
+                        const auto point=center+QPointF(30*std::cos(angle),30*std::sin(angle));
+                        if(vertex==0) path.moveTo(point); else path.lineTo(point);
+                    }
+                    path.closeSubpath();
+                } else if(shape==WheelShape::Capsule) {
+                    const double width=count==12?42:58;
+                    path.addRoundedRect(QRectF(-width/2,-156,width,88),width/2,width/2);
+                    QTransform transform;transform.rotate(slot*360.0/count);path=transform.map(path);
+                } else {
+                    const double step=360.0/count,gap=1.5;
+                    const QRectF outer(-156,-156,312,312),inner(-58,-58,116,116);
+                    path.arcMoveTo(outer,90+step/2-gap-slot*step);path.arcTo(outer,90+step/2-gap-slot*step,-step+2*gap);
+                    path.arcTo(inner,90-step/2+gap-slot*step,step-2*gap);path.closeSubpath();
                 }
-                path.closeSubpath();
-            } else {
-                const QRectF outer(-156,-156,312,312),inner(-66,-66,132,132);
-                path.arcMoveTo(outer,110.5-slot*45); path.arcTo(outer,110.5-slot*45,-41);
-                path.arcTo(inner,69.5-slot*45,41); path.closeSubpath();
             }
         }
         return result;
     }();
-    Q_ASSERT(index>=0 && index<8 && shape>=WheelShape::Sector && shape<=WheelShape::Hexagon);
-    return paths[int(shape)][index];
+    Q_ASSERT(supportedSlotCount(count) && index>=0 && index<count && shape>=WheelShape::Original && shape<=WheelShape::Capsule);
+    return paths[int(shape)][count/4-1][index];
 }
-int Geometry::hit(QPointF position,WheelShape shape) const {
+int Geometry::hit(QPointF position,WheelShape shape,int count) const {
     if(radius<=0) return -1;
     const auto point=(position-center)*(WheelRadius/radius);
-    for(int index=0;index<8;++index) if(slotPath(shape,index).contains(point)) return index;
+    for(int index=0;index<count;++index) if(slotPath(shape,index,count).contains(point)) return index;
     return -1;
 }
 }

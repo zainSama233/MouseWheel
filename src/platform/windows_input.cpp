@@ -5,6 +5,7 @@
 #include "core/interaction.h"
 #include "core/clock.h"
 #include <QThread>
+#include <QTimer>
 #include <QMetaObject>
 #include <Windows.h>
 #include <shellscalingapi.h>
@@ -21,7 +22,10 @@ struct Hook {
 };
 class WindowsInput final : public QObject {
 public:
-    explicit WindowsInput(InputService* service) : service_(service) {}
+    explicit WindowsInput(InputService* service) : service_(service) {
+        hover_=new QTimer(this);hover_->setSingleShot(true);
+        connect(hover_,&QTimer::timeout,this,[this]{publish(core_.advance(monotonicNanos()/1000000));});
+    }
     ~WindowsInput() override {
         keyboard_.reset(); mouse_.reset();
         if (focus_) UnhookWinEvent(focus_);
@@ -109,6 +113,10 @@ private:
             pending_.reset();
             Q_EMIT service_->showWheel(d.session,core_.snapshot(),core_.geometry(),screen_);
         }
+        if(d.levelChanged) Q_EMIT service_->levelChanged(d.session,core_.groupIndex());
+        const auto deadline=core_.hoverDeadline();
+        if(deadline<0) hover_->stop();
+        else if(!hover_->isActive() || deadline!=scheduledHover_) {scheduledHover_=deadline;hover_->start(int(qMax<qint64>(1,deadline-monotonicNanos()/1000000)));}
         if (d.selectionChanged) Q_EMIT service_->selection(d.session,d.selection);
         if (d.hide) {
             if (d.action) pending_ = d;
@@ -136,7 +144,7 @@ private:
         if (event.dwExtraInfo == win::injectionTag) return CallNextHookEx(nullptr,code,message,data);
         const QPointF point(event.pt.x,event.pt.y);
         Decision decision;
-        if (message == WM_MOUSEMOVE) decision = self_->core_.move(point);
+        if (message == WM_MOUSEMOVE) decision = self_->core_.move(point,monotonicNanos()/1000000);
         else {
             std::optional<MouseButton> button;
             bool down = false;
@@ -209,6 +217,8 @@ private:
     }
     static thread_local WindowsInput* self_;
     InputService* service_;
+    QTimer* hover_;
+    qint64 scheduledHover_=-1;
     Hook keyboard_, mouse_;
     HWINEVENTHOOK focus_ = nullptr;
     HWINEVENTHOOK location_ = nullptr;

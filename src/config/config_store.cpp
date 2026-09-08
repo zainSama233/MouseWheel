@@ -25,7 +25,7 @@ bool ConfigStore::load() {
     candidate.button = static_cast<MouseButton>(obj["button"].toInt(-1));
     candidate.theme = static_cast<Theme>(obj["theme"].toInt(-1));
     bool valid = doc.isObject() && parse.error == QJsonParseError::NoError &&
-                 (obj["version"].toInt(-1) == 1 || obj["version"].toInt(-1) == 2) && slots.size() == 8;
+                 (obj["version"].toInt(-1) >= 1 && obj["version"].toInt(-1) <= 3) && supportedSlotCount(slots.size());
     if(obj.contains("shape") && (!obj["shape"].isDouble() || obj["shape"].toDouble()!=obj["shape"].toInt(-1))) valid=false;
     candidate.shape=static_cast<WheelShape>(obj["shape"].toInt(static_cast<int>(WheelShape::Circle)));
     if(obj.contains("centerImage")) {
@@ -44,7 +44,8 @@ bool ConfigStore::load() {
         }
     }
     if (valid) {
-        for (int i=0; i<8; ++i) {
+        candidate.slots.resize(slots.size());
+        for (int i=0; i<slots.size(); ++i) {
             auto value = slots[i].toObject();
             if(obj["version"].toInt()==1) {
                 if(!value["name"].isString() || !value["key"].isDouble() || !value["modifiers"].isDouble()) { valid=false; break; }
@@ -79,7 +80,7 @@ bool ConfigStore::commit(const Config& config) {
     if (!error_.isEmpty()) return false;
     QJsonArray slots;
     for (const auto& slot : config.slots) slots.append(encodeSlot(slot));
-    QJsonObject obj{{"version",2}, {"modifier",static_cast<int>(config.modifier)},
+    QJsonObject obj{{"version",3}, {"modifier",static_cast<int>(config.modifier)},
                     {"button",static_cast<int>(config.button)}, {"theme",static_cast<int>(config.theme)},
                     {"slots",slots}, {"shape",static_cast<int>(config.shape)}, {"centerImage",QString::fromLatin1(config.centerImage.toBase64())}};
     obj["triggerRules"]=QJsonObject{{"pauseFullscreen",config.triggerRules.pauseFullscreen},

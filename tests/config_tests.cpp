@@ -11,6 +11,15 @@ using namespace wheel;
 class ConfigTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void variableGroupedRoundTrip() {
+        QTemporaryDir dir;ConfigStore store(dir.filePath("config.json"));
+        for(int count:{4,8,12}) {
+            auto c=defaultConfig();c.slots.resize(count);GroupAction group;group.slots.resize(12);
+            group.slots[11]={"Child",SystemAction{SystemOperation::Lock}};c.slots[count-1]={"Tools",group};
+            QVERIFY(store.commit(c));ConfigStore reopened(store.path());QVERIFY(reopened.load());QCOMPARE(reopened.current(),c);
+        }
+    }
+
     void triggerRulesRoundTripAndStrictRead() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
         auto c=defaultConfig(); c.triggerRules.pauseFullscreen=true;
@@ -30,11 +39,11 @@ private Q_SLOTS:
         const QJsonObject old{{"version",1},{"modifier",0},{"button",1},{"theme",0},{"slots",slots}};
         QVERIFY(file.open(QIODevice::WriteOnly));file.write(QJsonDocument(old).toJson());file.close();
         ConfigStore store(file.fileName());QVERIFY(store.load());QCOMPARE(store.current().slots[0].icon.value,QString("copy"));
-        QVERIFY(store.commit(store.current()));QVERIFY(file.open(QIODevice::ReadOnly));QCOMPARE(QJsonDocument::fromJson(file.readAll()).object()["version"].toInt(),2);
+        QVERIFY(store.commit(store.current()));QVERIFY(file.open(QIODevice::ReadOnly));QCOMPARE(QJsonDocument::fromJson(file.readAll()).object()["version"].toInt(),3);
     }
     void launcherAppearanceRoundTrip() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
-        auto config=defaultConfig(); config.shape=WheelShape::Hexagon;
+        auto config=defaultConfig(); config.shape=WheelShape::HexagonHive;
         QImage image(96,96,QImage::Format_ARGB32); image.fill(Qt::red);
         QBuffer buffer(&config.centerImage); QVERIFY(buffer.open(QIODevice::WriteOnly)); QVERIFY(image.save(&buffer,"PNG"));
         config.slots[0]={QStringLiteral("应用"),ApplicationAction{"C:/应用 空格/app.exe"}};

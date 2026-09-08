@@ -20,6 +20,8 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QUrl>
+#include <QSignalBlocker>
+#include <QMessageBox>
 namespace wheel {
 class ContentStack final:public QStackedWidget {
 public:
@@ -58,10 +60,10 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     };
     name_=line(head,QStringLiteral("名称"),QString("slot-name-%1").arg(index)); name_->setMaxLength(12);
     kind_=new QComboBox; kind_->setObjectName(QString("slot-kind-%1").arg(index));
-    for(int i=0;i<=int(ActionKind::System);++i) kind_->addItem(actionKindName(ActionKind(i)));
+    for(int i=0;i<=int(ActionKind::Group);++i) kind_->addItem(actionKindName(ActionKind(i)));
     head->addRow(QStringLiteral("动作"),kind_);
     pages_=new ContentStack; root->addWidget(pages_);
-    std::array<QFormLayout*,10> forms{};
+    std::array<QFormLayout*,11> forms{};
     for(auto& form:forms) { auto* page=new QWidget; form=new QFormLayout(page); form->setContentsMargins(0,0,0,0); pages_->addWidget(page); }
     shortcut_=new ShortcutEditor; forms[0]->addRow(shortcut_); connect(shortcut_,&ShortcutEditor::edited,this,[this]{if(name_->text().isEmpty()) name_->setText(shortcutText(shortcut_->shortcut()).left(12)); if(!loading_) Q_EMIT edited();});
     forms[1]->addRow(new QLabel(QStringLiteral("框选屏幕，生成独立贴图"))); forms[2]->addRow(new QLabel(QStringLiteral("直接在桌面绘制标注")));
@@ -102,6 +104,8 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     connect(window_,&QComboBox::currentIndexChanged,this,[this](int value){opacity_->setEnabled(value==int(WindowOperation::Opacity));});
     system_=combo(forms[9],QStringLiteral("操作"),{QStringLiteral("锁屏"),QStringLiteral("音量增加"),QStringLiteral("音量降低"),QStringLiteral("静音"),QStringLiteral("播放／暂停"),QStringLiteral("下一首"),QStringLiteral("上一首"),QStringLiteral("任务视图"),QStringLiteral("上一个虚拟桌面"),QStringLiteral("下一个虚拟桌面"),QStringLiteral("新建虚拟桌面"),QStringLiteral("关闭虚拟桌面"),QStringLiteral("显示桌面")});
     auto* appearance=new QFormLayout; root->addLayout(appearance);
+    auto* editGroup=new QPushButton(QStringLiteral("编辑子轮盘"));editGroup->setObjectName(QString("slot-edit-group-%1").arg(index));
+    forms[10]->addRow(editGroup);connect(editGroup,&QPushButton::clicked,this,&SlotEditor::editGroup);
     iconSource_=combo(appearance,QStringLiteral("图标来源"),{QStringLiteral("内置矢量图标"),QStringLiteral("程序图标"),QStringLiteral("自定义图片"),QStringLiteral("自动获取")});
     iconSource_->setObjectName(QString("slot-icon-source-%1").arg(index)); icons_=new ContentStack; appearance->addRow(icons_);
     symbol_=new QComboBox; symbol_->setObjectName(QString("slot-symbol-%1").arg(index));
@@ -122,11 +126,30 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
         if(source==int(IconSource::Automatic)) iconTimer_->start();
     });
     label_=new QCheckBox(QStringLiteral("显示名称")); appearance->addRow(label_); connect(label_,&QCheckBox::toggled,this,changed);
-    auto* clear=new QPushButton(QStringLiteral("清空槽位")); root->addWidget(clear); connect(clear,&QPushButton::clicked,this,[this]{setSlot({}); Q_EMIT edited();});
-    connect(kind_,&QComboBox::currentIndexChanged,this,[this](int value){pages_->setCurrentIndex(value); if(loading_) return; if(name_->text().isEmpty()) name_->setText(actionKindName(ActionKind(value))); Q_EMIT edited();});
+    auto* clear=new QPushButton(QStringLiteral("清空槽位")); root->addWidget(clear); connect(clear,&QPushButton::clicked,this,[this]{
+        if(slot().kind()==ActionKind::Group && std::any_of(group_.slots.begin(),group_.slots.end(),[](const Slot& s){return s.enabled();}) &&
+           QMessageBox::question(this,QStringLiteral("清空分组"),QStringLiteral("清空此分组及其中所有动作？"))!=QMessageBox::Yes) return;
+        setSlot({}); Q_EMIT edited();
+    });
+    connect(kind_,&QComboBox::currentIndexChanged,this,[this](int value){
+        if(!loading_ && pages_->currentIndex()==int(ActionKind::Group) && value!=int(ActionKind::Group) &&
+           std::any_of(group_.slots.begin(),group_.slots.end(),[](const Slot& s){return s.enabled();})) {
+            const QSignalBlocker blocker(kind_);kind_->setCurrentIndex(int(ActionKind::Group));
+            QMessageBox::information(this,QStringLiteral("保留分组动作"),QStringLiteral("请先编辑并清空子轮盘，再更换动作类型。"));return;
+        }
+        pages_->setCurrentIndex(value); if(loading_) return;
+        if(name_->text().isEmpty()) name_->setText(actionKindName(ActionKind(value)));
+        if(value==int(ActionKind::Group)) label_->setChecked(true);Q_EMIT edited();
+    });
     root->addStretch(); setSlot({});
 }
+void SlotEditor::setGroupsAllowed(bool allowed) {
+    const QSignalBlocker blocker(kind_);
+    if(allowed && kind_->count()==int(ActionKind::Group)) kind_->addItem(actionKindName(ActionKind::Group));
+    if(!allowed && kind_->count()>int(ActionKind::Group)) kind_->removeItem(int(ActionKind::Group));
+}
 void SlotEditor::setSlot(const Slot& s) {
+    group_=std::holds_alternative<GroupAction>(s.action)?std::get<GroupAction>(s.action):GroupAction{};
     iconTimer_->stop(); if(websiteIcon_) websiteIcon_->cancel();
     automaticUrl_=s.icon.source==IconSource::Automatic?s.icon.value:QString{};
     automaticImage_=s.icon.source==IconSource::Automatic?s.icon.image:QByteArray{};
@@ -168,6 +191,7 @@ Slot SlotEditor::slot() const {
     case ActionKind::Command: s.action=CommandAction{Shell(shell_->currentIndex()),script_->toPlainText(),commandDirectory_->text().trimmed(),hidden_->isChecked()}; break;
     case ActionKind::Ocr: s.action=OcrAction{OcrProvider(provider_->currentIndex()),endpoint_->text().trimmed(),apiKey_->text(),model_->text().trimmed(),resultPath_->text().trimmed()}; break;
     case ActionKind::Window: s.action=WindowAction{WindowOperation(window_->currentIndex()),opacity_->value()}; break;
+    case ActionKind::Group: s.action=group_;break;
     case ActionKind::System: s.action=SystemAction{SystemOperation(system_->currentIndex())}; break;
     }
     s.icon.source=IconSource(iconSource_->currentIndex()); s.icon.value=s.icon.source==IconSource::Builtin?symbol_->currentData().toString():s.icon.source==IconSource::Program?iconProgram_->text().trimmed():QString{};

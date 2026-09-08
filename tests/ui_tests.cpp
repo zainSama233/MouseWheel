@@ -114,9 +114,9 @@ private Q_SLOTS:
         SettingsWindow settings(store); settings.show(); QVERIFY(QTest::qWaitForWindowExposed(&settings));
         auto* preview=settings.findChild<WheelWindow*>(); auto* list=settings.findChild<QListWidget*>("slot-list");
         QVERIFY(preview); QVERIFY(list);
-        const auto point=[&](int i){return (QPointF(preview->width()/2.,preview->height()/2.)+slotCenter(i)*preview->width()/(WheelRadius*2)).toPoint();};
-        for(auto shape:{WheelShape::Circle,WheelShape::Hexagon,WheelShape::Sector}) {
-            settings.findChild<QComboBox*>("wheel-shape")->setCurrentIndex(int(shape));
+        const auto point=[&](int i){return (QPointF(preview->width()/2.,preview->height()/2.)+slotCenter(i,store.current().slots.size(),store.current().shape)*preview->width()/(WheelRadius*2)).toPoint();};
+        for(auto shape:{WheelShape::Circle,WheelShape::HexagonHive,WheelShape::Original}) {
+            auto* shapes=settings.findChild<QComboBox*>("wheel-shape");shapes->setCurrentIndex(shapes->findData(int(shape)));
             auto before=store.current(); QTest::mouseClick(preview,Qt::LeftButton,Qt::NoModifier,point(2)); QCOMPARE(list->currentRow(),2);
             QTest::mousePress(preview,Qt::LeftButton,Qt::NoModifier,point(2));
             QTest::mouseMove(preview,point(5)); QTest::mouseRelease(preview,Qt::LeftButton,Qt::NoModifier,point(5));
@@ -166,7 +166,7 @@ private Q_SLOTS:
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());
         SettingsWindow settings(store);
         auto* shape=settings.findChild<QComboBox*>("wheel-shape"); QVERIFY(shape);
-        shape->setCurrentIndex(2); QCOMPARE(store.current().shape,WheelShape::Hexagon);
+        shape->setCurrentIndex(3); QCOMPARE(store.current().shape,WheelShape::HexagonHive);
         auto* kind=settings.findChild<QComboBox*>("slot-kind-2"); kind->setCurrentIndex(int(ActionKind::Website));
         auto* target=settings.findChild<QLineEdit*>("slot-target-2"); QVERIFY(target);
         target->setText("example.com/path?q=1"); QMetaObject::invokeMethod(target,"editingFinished");
@@ -186,7 +186,7 @@ private Q_SLOTS:
         QVERIFY(!actionIcon(config.slots[2],Qt::black).isNull());
         QVERIFY(actionIcon(config.slots[2],Qt::black).pixmap(32,32).toImage()!=actionIcon(config.slots[3],Qt::black).pixmap(32,32).toImage());
         QDir().mkpath("artifacts");
-        for(int shape=0;shape<3;++shape) for(int theme=0;theme<3;++theme) {
+        for(int shape=0;shape<4;++shape) for(int theme=0;theme<3;++theme) {
             config.shape=static_cast<WheelShape>(shape); config.theme=static_cast<Theme>(theme);
             WheelWindow preview(false); preview.preview(config); preview.show();
             QVERIFY(QTest::qWaitForWindowExposed(&preview));

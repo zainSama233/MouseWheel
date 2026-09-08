@@ -63,6 +63,13 @@ class DesktopTests : public QObject {
         QCOMPARE(SendInput(1,&event,sizeof(INPUT)),UINT(1));
         QTest::qWait(12);
     }
+    static void movePointer(QPointF point) {
+        INPUT event{};event.type=INPUT_MOUSE;event.mi.dwExtraInfo=0x54455354;
+        event.mi.dwFlags=MOUSEEVENTF_MOVE|MOUSEEVENTF_ABSOLUTE|MOUSEEVENTF_VIRTUALDESK;
+        event.mi.dx=qRound((point.x()-GetSystemMetrics(SM_XVIRTUALSCREEN))*65535/(GetSystemMetrics(SM_CXVIRTUALSCREEN)-1));
+        event.mi.dy=qRound((point.y()-GetSystemMetrics(SM_YVIRTUALSCREEN))*65535/(GetSystemMetrics(SM_CYVIRTUALSCREEN)-1));
+        QCOMPARE(SendInput(1,&event,sizeof(INPUT)),UINT(1));QTest::qWait(20);
+    }
     void activateEditor() {
         editor_.show(); editor_.raise(); editor_.activateWindow(); editor_.setFocus();
         SetForegroundWindow(reinterpret_cast<HWND>(editor_.winId()));
@@ -108,6 +115,7 @@ private Q_SLOTS:
         connect(wheel_.get(),&WheelWindow::firstPaint,this,[this](quint64 id,qint64 time){
             if (onset_.contains(id)) latency_.append((time-onset_.take(id))/1000000.0);
         });
+        connect(input_.get(),&InputService::levelChanged,wheel_.get(),&WheelWindow::changeLevel);
         connect(input_.get(),&InputService::selection,wheel_.get(),&WheelWindow::select);
         connect(input_.get(),&InputService::hideWheel,wheel_.get(),&WheelWindow::dismiss);
         connect(wheel_.get(),&WheelWindow::hidden,input_.get(),&InputService::hidden);
@@ -115,6 +123,22 @@ private Q_SLOTS:
         input_->start(combinationConfig());
         QTRY_VERIFY(!ready.empty()); QVERIFY(ready.last()[0].toBool());
         activateEditor();
+    }
+    void groupedHoverAndSafeRelease() {
+        activateEditor();QSignalSpy levels(input_.get(),&InputService::levelChanged);QSignalSpy actions(input_.get(),&InputService::actionRequested);
+        for(auto shape:{WheelShape::Original,WheelShape::Circle,WheelShape::Capsule,WheelShape::HexagonHive}) {
+            Config c=shortcutConfig();c.slots.resize(12);c.shape=shape;GroupAction group;group.slots.resize(4);group.slots[1]={"Child",ScreenshotAction{}};c.slots[0]={"Tools",group};
+            input_->configure(c);QTest::qWait(40);
+            for(bool execute:{false,true}) {
+                levels.clear();const auto previous=shown_;mouse(true,true);QTRY_VERIFY(shown_>previous);
+                const auto rootPoint=geometry_.center+slotCenter(0,12,shape)*(geometry_.radius/WheelRadius);
+                movePointer(rootPoint);QTRY_COMPARE(levels.size(),1);QCOMPARE(levels[0][1].toInt(),0);
+                if(execute) {const auto childPoint=geometry_.center+slotCenter(1,4,shape)*(geometry_.radius/WheelRadius);movePointer(childPoint);QTest::qWait(40);}
+                const int before=actions.size();mouse(false,true);QTRY_VERIFY(!wheel_->isVisible());
+                if(execute) {QTRY_COMPARE(actions.size(),before+1);QCOMPARE(actions.last()[0].value<Slot>(),group.slots[1]);}
+                else {QTest::qWait(80);QCOMPARE(actions.size(),before);}
+            }
+        }
     }
     void toolDispatchAfterHide_data() {
         QTest::addColumn<int>("actionKind");

@@ -3,5 +3,5 @@
 #include <QJsonObject>
 namespace wheel {
 QJsonObject encodeSlot(const Slot& slot);
-std::optional<Slot> decodeSlot(const QJsonObject& object);
+std::optional<Slot> decodeSlot(const QJsonObject& object,bool allowGroup=true);
 }

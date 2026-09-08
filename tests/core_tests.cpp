@@ -8,6 +8,42 @@ class CoreTests : public QObject {
         return c;
     }
 private Q_SLOTS:
+    void edgeLayoutsRemainOnScreen() {
+        for(int count:{4,8,12}) for(auto shape:{WheelShape::Original,WheelShape::Circle,WheelShape::Capsule,WheelShape::HexagonHive})
+            for(double scale:{1.,1.5,2.}) for(const QPointF point:{QPointF(-1919,1),QPointF(-1,1079)}) {
+                const QRectF screen(-1920,0,1920,1080);const auto g=Geometry::fit(point,screen,scale);
+                QVERIFY(screen.contains(QRectF(g.center-QPointF(g.radius,g.radius),QSizeF(g.radius*2,g.radius*2))));
+                for(int i=0;i<count;++i) QCOMPARE(g.hit(g.center+slotCenter(i,count,shape)*(g.radius/WheelRadius),shape,count),i);
+            }
+    }
+    void variableLayoutsAndGroups() {
+        for(int count:{4,8,12}) for(auto shape:{WheelShape::Original,WheelShape::Circle,WheelShape::Capsule,WheelShape::HexagonHive}) {
+            Config c=defaultConfig(); c.slots.resize(count); c.shape=shape; QVERIFY(validate(c).isEmpty());
+            Geometry g{{300,300}};
+            for(int i=0;i<count;++i) {
+                const auto point=slotCenter(i,count,shape);
+                QCOMPARE(g.hit(g.center+point,shape,count),i);
+                for(int j=0;j<count;++j) QCOMPARE(slotPath(shape,j,count).contains(point),i==j);
+                QVERIFY(!slotPath(shape,i,count).contains(QPointF{}));
+            }
+        }
+        Config c=defaultConfig();GroupAction group;group.slots[0]={"Child",ScreenshotAction{}};c.slots[0]={"Tools",group};
+        Geometry g{{300,300}};Interaction core;core.press(MouseButton::Middle,0,c,g,1);
+        core.move(g.center+slotCenter(0),100);
+        QVERIFY(!core.advance(449).levelChanged);
+        QVERIFY(core.advance(450).levelChanged);QCOMPARE(core.groupIndex(),0);
+        QVERIFY(!core.release(MouseButton::Middle,g.center+slotCenter(0)).action);
+        core.press(MouseButton::Middle,0,c,g,1);core.move(g.center+slotCenter(0),100);core.advance(450);
+        core.move(g.center+slotCenter(0)+QPointF(15,0),451);
+        QVERIFY(core.release(MouseButton::Middle,g.center+slotCenter(0)).action);
+        core.press(MouseButton::Middle,0,c,g,1);core.move(g.center+slotCenter(0),100);core.advance(450);
+        QVERIFY(core.move(g.center,451).levelChanged);QCOMPARE(core.groupIndex(),-1);
+        QVERIFY(!core.release(MouseButton::Middle,g.center).action);
+        c.slots[0]=Slot{"Nested",GroupAction{}};
+        std::get<GroupAction>(c.slots[0].action).slots[0]=Slot{"Nested",GroupAction{}};
+        QVERIFY(!validate(c).isEmpty());
+    }
+
     void contextPermissionPreservesPairs() {
         auto c=defaultConfig(); Interaction core; Geometry g{{400,400}};
         QVERIFY(!core.press(MouseButton::Middle,0,c,g,1,false).consumed);
@@ -29,11 +65,11 @@ private Q_SLOTS:
         QVERIFY(rules.allows("C:/Apps/Other.exe",false));
     }
     void shapedHitRegions() {
-        for(auto shape:{WheelShape::Sector,WheelShape::Circle,WheelShape::Hexagon}) {
+        for(auto shape:{WheelShape::Original,WheelShape::Circle,WheelShape::HexagonHive}) {
             auto geometry=Geometry::fit({400,400},{0,0,1000,1000},1);
             for(int index=0;index<8;++index) {
-                QCOMPARE(geometry.hit(geometry.center+slotCenter(index),shape),index);
-                QVERIFY(slotPath(shape,index).contains(slotCenter(index)));
+                QCOMPARE(geometry.hit(geometry.center+slotCenter(index,8,shape),shape),index);
+                QVERIFY(slotPath(shape,index).contains(slotCenter(index,8,shape)));
             }
             QCOMPARE(geometry.hit(geometry.center+QPointF(0,-54),shape),-1);
             QCOMPARE(geometry.hit(geometry.center+QPointF(0,-163),shape),-1);

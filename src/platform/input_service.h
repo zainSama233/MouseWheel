@@ -18,6 +18,7 @@ Q_SIGNALS:
     void triggered(quint64 session, qint64 nanoseconds);
     void showWheel(quint64 session, wheel::Config config, wheel::Geometry geometry, QString screen);
     void selection(quint64 session, int index);
+    void levelChanged(quint64 session,int group);
     void hideWheel(quint64 session);
     void failure(QString error);
     void listening(bool available);

@@ -9,9 +9,10 @@ class WheelWindow final : public QWidget {
 public:
     explicit WheelWindow(bool overlay = true, QWidget* parent = nullptr);
     void present(quint64 session, Config config, Geometry geometry, const QString& screen);
+    void changeLevel(quint64 session,int group);
     void select(quint64 session, int index);
     void dismiss(quint64 session);
-    void preview(const Config& config);
+    void preview(const Config& config,int group=-1);
 Q_SIGNALS:
     void slotClicked(int index);
     void slotsSwapped(int source,int target);
@@ -24,11 +25,15 @@ protected:
     void paintEvent(QPaintEvent*) override;
     bool nativeEvent(const QByteArray&, void*, qintptr*) override;
 private:
+    void applyLevel();
     void applyConfig(const Config& config);
     int previewSlotAt(QPointF position) const;
     QVariantAnimation opening_;
     double opacity_=1;
-    std::array<QIcon,8> icons_, selectedIcons_;
+    QList<QIcon> icons_, selectedIcons_;
+    int group_=-1;
+    int cachedGroup_=-1;
+    Config rootConfig_;
     QIcon cancelIcon_;
     QPixmap centerImage_;
     QPointF dragStart_;
