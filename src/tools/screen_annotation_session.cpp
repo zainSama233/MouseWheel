@@ -7,12 +7,12 @@
 #include <QComboBox>
 #include <QMouseEvent>
 #include <QInputDialog>
-#include <QLineEdit>
 #include <QSignalBlocker>
 #include <Windows.h>
 #include <utility>
 namespace wheel {
 class ScreenOverlay final : public QWidget {
+    Q_OBJECT
 public:
     ScreenOverlay(QScreen* screen,std::shared_ptr<AnnotationDocument> document,std::shared_ptr<Annotation> style)
         : document_(std::move(document)),style_(std::move(style)) {
@@ -33,6 +33,8 @@ public:
         SetWindowPos(hwnd,nullptr,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_FRAMECHANGED);
         update();
     }
+Q_SIGNALS:
+    void textRequested(wheel::Annotation annotation);
 protected:
     void paintEvent(QPaintEvent*) override {
         const auto scale=devicePixelRatioF();
@@ -49,16 +51,10 @@ protected:
     }
     void mousePressEvent(QMouseEvent* e) override {
         if(!drawing_ || e->button()!=Qt::LeftButton) return;
-        Annotation annotation=*style_; annotation.points={e->globalPosition()};
-        if(annotation.tool==AnnotationTool::Text) {
-            QPointer<ScreenOverlay> guard(this);
-            bool ok=false;
-            annotation.text=QInputDialog::getText(this,QStringLiteral("文字标注"),QStringLiteral("文字"),QLineEdit::Normal,{},&ok);
-            if(ok && guard && drawing_) document_->add(std::move(annotation));
-        } else { pending_=std::move(annotation); update(); }
+        pending_=*style_; pending_->points={e->globalPosition()}; update();
     }
     void mouseMoveEvent(QMouseEvent* e) override {
-        if(!pending_) return;
+        if(!pending_ || pending_->tool==AnnotationTool::Text) return;
         const auto tool=pending_->tool;
         if(tool==AnnotationTool::Pen || tool==AnnotationTool::Highlighter || tool==AnnotationTool::Eraser || pending_->points.size()==1)
             pending_->points.append(e->globalPosition());
@@ -67,7 +63,10 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent* e) override {
         if(e->button()!=Qt::LeftButton || !pending_) return;
-        mouseMoveEvent(e); auto annotation=std::move(*pending_); pending_.reset(); document_->add(std::move(annotation));
+        mouseMoveEvent(e); auto annotation=std::move(*pending_); pending_.reset();
+        if(annotation.tool==AnnotationTool::Text) Q_EMIT textRequested(std::move(annotation));
+        else document_->add(std::move(annotation));
+        update();
     }
 private:
     std::shared_ptr<AnnotationDocument> document_;
@@ -78,15 +77,32 @@ private:
 };
 ScreenAnnotationSession::ScreenAnnotationSession(QObject* parent):QObject(parent) {}
 ScreenAnnotationSession::~ScreenAnnotationSession() {
+    cancelTextInput();
     for(auto* overlay:overlays_) delete overlay;
     if(toolbar_) { toolbar_->removeEventFilter(this); delete toolbar_.data(); }
 }
 void ScreenAnnotationSession::start(Theme theme) {
-    if(active()) { setDrawing(true); toolbar_->raise(); return; }
+    if(active()) { setDrawing(true); return; }
     document_=std::make_shared<AnnotationDocument>(); style_=std::make_shared<Annotation>();
     for(auto* screen:QApplication::screens()) {
         auto* overlay=new ScreenOverlay(screen,document_,style_); overlays_.append(overlay);
         overlay->installEventFilter(this);
+        connect(overlay,&ScreenOverlay::textRequested,this,[this](Annotation annotation){
+            if(textInput_ || !drawing()) return;
+            auto* dialog=new QInputDialog(toolbar_); textInput_=dialog;
+            dialog->setWindowTitle(QStringLiteral("文字标注")); dialog->setLabelText(QStringLiteral("文字"));
+            dialog->setOkButtonText(QStringLiteral("确定")); dialog->setCancelButtonText(QStringLiteral("取消"));
+            dialog->setWindowFlag(Qt::WindowStaysOnTopHint);
+            connect(dialog,&QDialog::finished,this,[this,dialog,annotation=std::move(annotation)](int result) mutable {
+                textInput_=nullptr;
+                if(result==QDialog::Accepted && drawing()) {
+                    annotation.text=dialog->textValue(); document_->add(std::move(annotation));
+                }
+                dialog->deleteLater();
+                if(drawing()) setDrawing(true);
+            });
+            dialog->open();
+        });
         connect(screen,&QScreen::geometryChanged,overlay,[this]{stop();});
         connect(screen,&QObject::destroyed,overlay,[this]{stop();});
         overlay->show();
@@ -123,18 +139,29 @@ void ScreenAnnotationSession::start(Theme theme) {
     auto* screen=QApplication::screenAt(QCursor::pos()); if(!screen) screen=QApplication::primaryScreen();
     toolbar_->setScreen(screen); toolbar_->move(screen->availableGeometry().topLeft()+QPoint(24,24));
     toolbar_->resize(toolbar_->sizeHint().boundedTo(screen->availableGeometry().size()));
-    toolbar_->show(); setDrawing(true); toolbar_->raise(); toolbar_->activateWindow();
+    setDrawing(true);
 }
 void ScreenAnnotationSession::setDrawing(bool drawing) {
     if(!active()) return;
+    if(!drawing) cancelTextInput();
     drawing_=drawing;
     for(auto* overlay:overlays_) { overlay->setDrawing(drawing); if(drawing) overlay->raise(); }
     auto* mode=toolbar_->findChild<QAction*>("desktop-mode"); const QSignalBlocker blocker(mode);
     mode->setChecked(!drawing); mode->setText(drawing?QStringLiteral("操作桌面"):QStringLiteral("继续绘制"));
-    toolbar_->raise(); Q_EMIT stateChanged();
+    if(drawing) {
+        toolbar_->showNormal(); toolbar_->raise(); toolbar_->activateWindow();
+        if(textInput_) { textInput_->raise(); textInput_->activateWindow(); }
+    }
+    Q_EMIT stateChanged();
+}
+void ScreenAnnotationSession::cancelTextInput() {
+    if(!textInput_) return;
+    auto* dialog=textInput_.data(); textInput_=nullptr;
+    disconnect(dialog,nullptr,this,nullptr); dialog->reject(); dialog->deleteLater();
 }
 void ScreenAnnotationSession::stop() {
     if(!active()) return;
+    cancelTextInput();
     const auto overlays=std::exchange(overlays_,{});
     for(auto* overlay:overlays) { overlay->removeEventFilter(this); for(auto* screen:QApplication::screens()) disconnect(screen,nullptr,overlay,nullptr); overlay->hide(); overlay->deleteLater(); }
     auto* toolbar=toolbar_.data(); toolbar_=nullptr;
@@ -149,3 +176,5 @@ bool ScreenAnnotationSession::eventFilter(QObject* object,QEvent* event) {
     return QObject::eventFilter(object,event);
 }
 }
+
+#include "screen_annotation_session.moc"

@@ -5,6 +5,7 @@
 #include "core/model.h"
 #include "tools/annotation_document.h"
 class QToolBar;
+class QInputDialog;
 namespace wheel {
 class ScreenOverlay;
 class ScreenAnnotationSession final : public QObject {
@@ -23,10 +24,12 @@ Q_SIGNALS:
 protected:
     bool eventFilter(QObject*,QEvent*) override;
 private:
+    void cancelTextInput();
     std::shared_ptr<AnnotationDocument> document_;
     std::shared_ptr<Annotation> style_;
     QList<ScreenOverlay*> overlays_;
     QPointer<QToolBar> toolbar_;
+    QPointer<QInputDialog> textInput_;
     bool drawing_=false;
 };
 }
