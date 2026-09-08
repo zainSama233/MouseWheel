@@ -1,5 +1,7 @@
 #pragma once
 #include <QWidget>
+#include <QVariantAnimation>
+#include <QIcon>
 #include "core/model.h"
 namespace wheel {
 class WheelWindow final : public QWidget {
@@ -17,6 +19,13 @@ protected:
     void paintEvent(QPaintEvent*) override;
     bool nativeEvent(const QByteArray&, void*, qintptr*) override;
 private:
+    void applyConfig(const Config& config);
+    QVariantAnimation opening_;
+    double opacity_=1;
+    std::array<QIcon,8> icons_, selectedIcons_;
+    QIcon cancelIcon_;
+    QPixmap centerImage_;
+    bool cached_=false;
     bool overlay_;
     bool painted_ = false;
     quint64 session_ = 0;

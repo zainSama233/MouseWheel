@@ -1,15 +1,18 @@
 #include "ui/wheel_window.h"
 #include "ui/theme.h"
+#include "ui/action_icons.h"
+#include "core/image_asset.h"
 #include "core/clock.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QGuiApplication>
 #include <QScreen>
 #include <Windows.h>
-#include <cmath>
-#include <numbers>
 namespace wheel {
-WheelWindow::WheelWindow(bool overlay, QWidget* parent) : QWidget(parent), overlay_(overlay) {
+WheelWindow::WheelWindow(bool overlay, QWidget* parent) : QWidget(parent), opening_(this), overlay_(overlay) {
+    opening_.setDuration(120); opening_.setStartValue(0.15); opening_.setEndValue(1.0);
+    opening_.setEasingCurve(QEasingCurve::OutCubic);
+    connect(&opening_,&QVariantAnimation::valueChanged,this,[this](const QVariant& value){opacity_=value.toDouble(); update();});
     if (overlay_) {
         setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
                        Qt::WindowDoesNotAcceptFocus | Qt::WindowTransparentForInput);
@@ -20,11 +23,12 @@ WheelWindow::WheelWindow(bool overlay, QWidget* parent) : QWidget(parent), overl
         SetWindowLongPtrW(hwnd,GWL_EXSTYLE,GetWindowLongPtrW(hwnd,GWL_EXSTYLE) |
                          WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT);
     }
-    resize(328,328);
+    resize(int(WheelRadius*2),int(WheelRadius*2)); applyConfig(config_);
 }
 void WheelWindow::present(quint64 session, Config config, Geometry geometry, const QString& name) {
     if (session <= session_) return;
-    painted_ = false; session_ = session; config_ = std::move(config); selection_ = -1;
+    painted_ = false; session_ = session; applyConfig(config); selection_ = -1;
+    opening_.stop(); opacity_=0.15;
     for (auto* screen : QGuiApplication::screens()) {
         if (screen->name() != name) continue;
         setScreen(screen);
@@ -40,17 +44,27 @@ void WheelWindow::present(quint64 session, Config config, Geometry geometry, con
     SetWindowPos(hwnd,HWND_TOPMOST,qRound(geometry.center.x()-geometry.radius),
                  qRound(geometry.center.y()-geometry.radius),qRound(geometry.radius*2),
                  qRound(geometry.radius*2),SWP_NOACTIVATE | SWP_SHOWWINDOW);
-    update();
+    opening_.start(); update();
 }
 void WheelWindow::select(quint64 session, int index) {
     if (session != session_ || selection_ == index) return;
     selection_ = index; update();
 }
 void WheelWindow::dismiss(quint64 session) {
-    if (session >= session_) { session_ = session; hide(); }
+    if (session >= session_) { session_ = session; opening_.stop(); hide(); }
     Q_EMIT hidden(session);
 }
-void WheelWindow::preview(const Config& config) { config_ = config; update(); }
+void WheelWindow::applyConfig(const Config& config) {
+    if(cached_ && config_==config) return;
+    config_=config; const auto colors=themeColors(config.theme);
+    for(int i=0;i<8;++i) {
+        icons_[i]=actionIcon(config.slots[i],config.slots[i].enabled()?colors.text:colors.muted);
+        selectedIcons_[i]=actionIcon(config.slots[i],colors.selectedText);
+    }
+    cancelIcon_=symbolIcon("x",colors.muted);
+    centerImage_=QPixmap::fromImage(decodeCenterImage(config.centerImage)); cached_=true;
+}
+void WheelWindow::preview(const Config& config) { applyConfig(config); update(); }
 bool WheelWindow::nativeEvent(const QByteArray& type, void* message, qintptr* result) {
     const auto* msg = static_cast<MSG*>(message);
     if (overlay_ && msg->message == WM_MOUSEACTIVATE) { *result = MA_NOACTIVATE; return true; }
@@ -62,35 +76,36 @@ void WheelWindow::paintEvent(QPaintEvent*) {
     p.setRenderHint(QPainter::Antialiasing);
     const auto colors = themeColors(config_.theme);
     p.translate(width()/2.0,height()/2.0);
-    p.scale(width()/328.0,height()/328.0);
-    const QRectF outer(-164,-164,328,328);
-    const QRectF inner(-42,-42,84,84);
+    p.scale(width()/(WheelRadius*2),height()/(WheelRadius*2));
+    p.setOpacity(opacity_);
+    const double scale=0.94+0.06*opacity_; p.scale(scale,scale);
     p.setPen(Qt::NoPen);
-    for (int i=0;i<8;++i) {
-        QPainterPath wedge;
-        wedge.arcMoveTo(outer,112.5-i*45);
-        wedge.arcTo(outer,112.5-i*45,-45);
-        wedge.arcTo(inner,67.5-i*45,45);
-        wedge.closeSubpath();
-        const bool selected = i==selection_ && config_.slots[i].enabled();
-        p.fillPath(wedge,selected ? colors.selected : colors.surface);
-        const double a = i*std::numbers::pi/4;
-        const QPointF center(108*std::sin(a),-108*std::cos(a));
-        p.setPen(selected ? colors.selectedText : colors.text);
-        QFont font = p.font(); font.setPixelSize(14); font.setWeight(QFont::DemiBold); p.setFont(font);
-        const auto& slot = config_.slots[i];
-        QString label = slot.enabled() ? slot.name : QStringLiteral("空");
-        label = p.fontMetrics().elidedText(label,Qt::ElideRight,90);
-        p.drawText(QRectF(center.x()-46,center.y()-20,92,22),Qt::AlignCenter,label);
-        font.setPixelSize(10); font.setWeight(QFont::Normal); p.setFont(font);
-        p.setPen(selected ? colors.selectedText : colors.muted);
-        p.drawText(QRectF(center.x()-47,center.y()+4,94,18),Qt::AlignCenter,slot.kind==ActionKind::Shortcut ? shortcutText(slot.shortcut) : actionKindName(slot.kind));
-        p.setPen(Qt::NoPen);
+    for(int i=0;i<8;++i) {
+        const bool selected=i==selection_ && config_.slots[i].enabled();
+        const auto& path=slotPath(config_.shape,i);
+        p.fillPath(path,selected?colors.selected:colors.surface);
+        const auto center=slotCenter(i);
+        const auto& slot=config_.slots[i];
+        const bool label=slot.enabled() && slot.kind!=ActionKind::Shortcut;
+        const QRect iconArea(qRound(center.x()-15),qRound(center.y()-(label?24:15)),30,30);
+        (selected?selectedIcons_[i]:icons_[i]).paint(&p,iconArea);
+        if(label) {
+            auto font=p.font(); font.setPixelSize(10); p.setFont(font);
+            p.setPen(selected?colors.selectedText:colors.muted);
+            const auto text=p.fontMetrics().elidedText(slot.name,Qt::ElideRight,60);
+            p.drawText(QRectF(center.x()-30,center.y()+10,60,16),Qt::AlignCenter,text);
+            p.setPen(Qt::NoPen);
+        }
     }
-    p.setBrush(colors.background); p.drawEllipse(inner);
-    p.setPen(colors.muted);
-    QFont font = p.font(); font.setPixelSize(12); p.setFont(font);
-    p.drawText(inner,Qt::AlignCenter,QStringLiteral("取消"));
+    const QRectF inner(-CenterRadius,-CenterRadius,CenterRadius*2,CenterRadius*2);
+    p.setBrush(colors.surface); p.drawEllipse(inner);
+    if(centerImage_.isNull()) cancelIcon_.paint(&p,QRect(-12,-12,24,24));
+    else {
+        QPainterPath clip; clip.addEllipse(inner.adjusted(4,4,-4,-4)); p.setClipPath(clip);
+        const int diameter=qRound((CenterRadius-4)*2);
+        auto image=centerImage_.scaled(diameter,diameter,Qt::KeepAspectRatioByExpanding,Qt::SmoothTransformation);
+        p.drawPixmap(-image.width()/2,-image.height()/2,image); p.setClipping(false);
+    }
     p.end();
     if (overlay_ && !painted_) { painted_ = true; Q_EMIT firstPaint(session_,monotonicNanos()); }
 }

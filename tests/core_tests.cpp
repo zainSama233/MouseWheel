@@ -4,10 +4,35 @@ using namespace wheel;
 class CoreTests : public QObject {
     Q_OBJECT
     static Config combinationConfig() {
-        auto c = defaultConfig(); c.modifier = Modifier::Control; c.button = MouseButton::Right;
+        auto c = defaultConfig(); c.slots[0]={"Copy",{Qt::Key_C,bit(Modifier::Control)}}; c.slots[2]={"Undo",{Qt::Key_Z,bit(Modifier::Control)}}; c.modifier = Modifier::Control; c.button = MouseButton::Right;
         return c;
     }
 private Q_SLOTS:
+    void shapedHitRegions() {
+        for(auto shape:{WheelShape::Sector,WheelShape::Circle,WheelShape::Hexagon}) {
+            auto geometry=Geometry::fit({400,400},{0,0,1000,1000},1);
+            for(int index=0;index<8;++index) {
+                QCOMPARE(geometry.hit(geometry.center+slotCenter(index),shape),index);
+                QVERIFY(slotPath(shape,index).contains(slotCenter(index)));
+            }
+            QCOMPARE(geometry.hit(geometry.center+QPointF(0,-54),shape),-1);
+            QCOMPARE(geometry.hit(geometry.center+QPointF(0,-163),shape),-1);
+            auto config=defaultConfig(); config.shape=shape;
+            Interaction core; QVERIFY(core.press(MouseButton::Middle,0,config,geometry,1).show);
+            QVERIFY(!core.release(MouseButton::Middle,geometry.center+QPointF(0,-54)).action);
+        }
+    }
+    void launcherValidation() {
+        auto config=defaultConfig();
+        config.slots[0]={QStringLiteral("网页"),{},ActionKind::Website,"https://example.com/a?q=test"};
+        QVERIFY(validate(config).isEmpty());
+        for(auto target:{"javascript:alert(1)","https://","file:///C:/temp/a","https://example.com/a b"}) {
+            config.slots[0].target=target; QVERIFY(!validate(config).isEmpty());
+        }
+        config.slots[0]={QStringLiteral("应用"),{},ActionKind::Application,"C:/Program Files/App/app.exe"};
+        QVERIFY(validate(config).isEmpty());
+        config.slots[0].shortcut.key=Qt::Key_C; QVERIFY(!validate(config).isEmpty());
+    }
     void screenshotIsExecutableWithoutShortcut() {
         auto config=defaultConfig();
         config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};

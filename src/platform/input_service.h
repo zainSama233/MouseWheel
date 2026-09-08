@@ -14,7 +14,7 @@ public:
     void hidden(quint64 session);
     void restart();
 Q_SIGNALS:
-    void toolRequested(wheel::ActionKind kind);
+    void actionRequested(wheel::Slot action);
     void triggered(quint64 session, qint64 nanoseconds);
     void showWheel(quint64 session, wheel::Config config, wheel::Geometry geometry, QString screen);
     void selection(quint64 session, int index);

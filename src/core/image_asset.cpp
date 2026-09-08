@@ -1,0 +1,29 @@
+#include "core/image_asset.h"
+#include <QImageReader>
+#include <QBuffer>
+#include <QFileInfo>
+namespace wheel {
+QImage decodeCenterImage(const QByteArray& png) {
+    if(png.isEmpty() || png.size()>65536) return {};
+    QBuffer buffer; buffer.setData(png); buffer.open(QIODevice::ReadOnly);
+    QImageReader reader(&buffer,"PNG");
+    const auto size=reader.size();
+    if(!size.isValid() || size.width()>128 || size.height()>128) return {};
+    return reader.read();
+}
+bool importCenterImage(const QString& path,QByteArray& png,QString& error) {
+    error.clear(); QImageReader reader(path); reader.setAutoTransform(true);
+    const auto size=reader.size();
+    if(QFileInfo(path).size()>10*1024*1024 || !size.isValid() || qint64(size.width())*size.height()>20000000) {
+        error=QStringLiteral("请选择小于 10 MB、2000 万像素的图片。"); return false;
+    }
+    reader.setScaledSize(size.scaled(96,96,Qt::KeepAspectRatio));
+    const auto image=reader.read();
+    if(image.isNull()) { error=QStringLiteral("无法读取图片。"); return false; }
+    QByteArray data; QBuffer buffer(&data); buffer.open(QIODevice::WriteOnly);
+    if(!image.scaled(96,96,Qt::KeepAspectRatio,Qt::SmoothTransformation).save(&buffer,"PNG")) {
+        error=QStringLiteral("无法保存中心图片。"); return false;
+    }
+    png=std::move(data); return true;
+}
+}

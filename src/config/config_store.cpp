@@ -13,7 +13,7 @@ bool ConfigStore::load() {
     if (!file.open(QIODevice::ReadOnly)) {
         error_ = file.errorString(); blocked_ = true; return false;
     }
-    if (file.size() > 65536) { error_ = QStringLiteral("配置文件过大。"); blocked_ = true; return false; }
+    if (file.size() > 262144) { error_ = QStringLiteral("配置文件过大。"); blocked_ = true; return false; }
     QJsonParseError parse;
     const auto doc = QJsonDocument::fromJson(file.readAll(), &parse);
     const auto obj = doc.object();
@@ -24,6 +24,14 @@ bool ConfigStore::load() {
     candidate.theme = static_cast<Theme>(obj["theme"].toInt(-1));
     bool valid = doc.isObject() && parse.error == QJsonParseError::NoError &&
                  obj["version"].toInt(-1) == 1 && slots.size() == 8;
+    if(obj.contains("shape") && (!obj["shape"].isDouble() || obj["shape"].toDouble()!=obj["shape"].toInt(-1))) valid=false;
+    candidate.shape=static_cast<WheelShape>(obj["shape"].toInt(static_cast<int>(WheelShape::Circle)));
+    if(obj.contains("centerImage")) {
+        if(!obj["centerImage"].isString()) valid=false;
+        const auto encoded=obj["centerImage"].toString().toLatin1();
+        candidate.centerImage=QByteArray::fromBase64(encoded,QByteArray::AbortOnBase64DecodingErrors);
+        if(!encoded.isEmpty() && candidate.centerImage.isEmpty()) valid=false;
+    }
     if (valid) {
         for (int i=0; i<8; ++i) {
             auto value = slots[i].toObject();
@@ -31,7 +39,8 @@ bool ConfigStore::load() {
                 !value["modifiers"].isDouble()) { valid = false; break; }
             candidate.slots[i] = {value["name"].toString(),
                 {value["key"].toInt(-1), static_cast<unsigned>(value["modifiers"].toInt(-1))},
-                static_cast<ActionKind>(value["kind"].toInt(0))};
+                static_cast<ActionKind>(value["kind"].toInt(0)),value["target"].toString()};
+            if(value.contains("target") && !value["target"].isString()) { valid=false; break; }
             if (value.contains("kind") && (!value["kind"].isDouble() || value["kind"].toDouble()!=value["kind"].toInt(-1))) { valid=false; break; }
         }
     }
@@ -48,11 +57,11 @@ bool ConfigStore::commit(const Config& config) {
     if (!error_.isEmpty()) return false;
     QJsonArray slots;
     for (const auto& slot : config.slots)
-        slots.append(QJsonObject{{"name",slot.name}, {"kind",static_cast<int>(slot.kind)}, {"key",slot.shortcut.key},
+        slots.append(QJsonObject{{"name",slot.name}, {"target",slot.target}, {"kind",static_cast<int>(slot.kind)}, {"key",slot.shortcut.key},
                                  {"modifiers",static_cast<int>(slot.shortcut.modifiers)}});
     QJsonObject obj{{"version",1}, {"modifier",static_cast<int>(config.modifier)},
                     {"button",static_cast<int>(config.button)}, {"theme",static_cast<int>(config.theme)},
-                    {"slots",slots}};
+                    {"slots",slots}, {"shape",static_cast<int>(config.shape)}, {"centerImage",QString::fromLatin1(config.centerImage.toBase64())}};
     QSaveFile file(path_);
     file.setDirectWriteFallback(false);
     const auto data = QJsonDocument(obj).toJson();

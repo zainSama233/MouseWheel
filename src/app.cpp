@@ -1,6 +1,7 @@
 #include "app.h"
 #include "ui/settings_window.h"
 #include "ui/theme.h"
+#include "tools/launcher.h"
 #include <QApplication>
 #include <QAction>
 #include <QMenu>
@@ -17,9 +18,12 @@ App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_u
     menu_->addAction(QStringLiteral("打开设置"),this,&App::openSettings);
     menu_->addAction(actionKindName(ActionKind::Screenshot),this,&App::takeScreenshot);
     menu_->addAction(actionKindName(ActionKind::ScreenAnnotation),this,&App::annotateScreen);
-    connect(&input_,&InputService::toolRequested,this,[this](ActionKind kind){
-        if(kind==ActionKind::Screenshot) takeScreenshot();
-        else if(kind==ActionKind::ScreenAnnotation) annotateScreen();
+    connect(&input_,&InputService::actionRequested,this,[this](const Slot& action){
+        if(action.kind==ActionKind::Screenshot) takeScreenshot();
+        else if(action.kind==ActionKind::ScreenAnnotation) annotateScreen();
+        else {
+            QString error; if(!launchTarget(action,error)) tray_.showMessage(QStringLiteral("打开失败"),error,QSystemTrayIcon::Warning);
+        }
     });
     connect(&annotation_,&ScreenAnnotationSession::stateChanged,this,&App::updateState);
     connect(&screenshot_,&ScreenshotSession::activeChanged,this,&App::updateState);
@@ -43,7 +47,7 @@ App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_u
         available_ = available; updateState();
     });
     connect(&config_,&ConfigStore::changed,&input_,&InputService::configure);
-    connect(&config_,&ConfigStore::changed,this,[this]{ updateState(); });
+    connect(&config_,&ConfigStore::changed,this,[this]{ wheel_.preview(config_.current()); updateState(); });
 }
 App::~App() {
     if (settings_) { disconnect(settings_,nullptr,this,nullptr); delete settings_.data(); }
@@ -54,6 +58,7 @@ void App::start(bool showSettings) {
     if (loaded && !exists && !config_.commit(config_.current()))
         qWarning().noquote() << config_.error();
     tray_.show();
+    wheel_.preview(config_.current());
     input_.start(config_.current());
     updateState();
     if (showSettings || !exists || !loaded) openSettings();

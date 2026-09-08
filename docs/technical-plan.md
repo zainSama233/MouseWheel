@@ -7,10 +7,11 @@
 ## 实现入口
 
 - [交互模型与几何](../src/core/model.h)、[状态机](../src/core/interaction.h)
-- [配置存储](../src/config/config_store.h)
+- [配置存储](../src/config/config_store.h)、[中心图片导入与解码](../src/core/image_asset.h)
 - [平台接口](../src/platform/input_service.h)、[Windows 输入线程](../src/platform/windows_input.cpp)、[注入计划](../src/platform/windows_injection.cpp)
 - [轮盘](../src/ui/wheel_window.h)、[设置](../src/ui/settings_window.h)、[共享主题](../src/ui/theme.h)
 - [标注模型与撤销](../src/tools/annotation_document.h)、[独立屏幕标注](../src/tools/screen_annotation_session.h)、[贴图窗口](../src/tools/pinned_image.h)、[截图会话](../src/tools/screenshot_session.h)
+- [启动目标执行](../src/tools/launcher.h)、[动作图标](../src/ui/action_icons.h)、[图标来源](../src/ui/icons/SOURCE.md)
 - [应用装配](../src/app.cpp)、[启动入口](../src/main.cpp)
 - [固定依赖版本](../toolchain.json)、[构建与打包](../scripts/build.ps1)、[测试入口](../scripts/test.ps1)
 - [实测结果与尚未验证的项目](validation.md)
@@ -21,7 +22,7 @@
 | 领域 | 方案 |
 | --- | --- |
 | 主语言 | C++20，使用 RAII 管理原生资源 |
-| 界面 | Qt 6 Widgets；轮盘使用 QWidget + QPainter 自绘 |
+| 界面 | Qt 6 Widgets；轮盘使用 QWidget + QPainter 自绘，Qt SVG 渲染图标 |
 | Windows | Win32 低级输入钩子、非激活窗口、SendInput |
 | macOS | Objective-C++ 桥接 AppKit / Core Graphics，使用非激活面板和事件接口 |
 | 配置 | Qt JSON + QSaveFile，本地单文件保存 |
@@ -81,7 +82,7 @@ Windows 便携版在程序目录保存配置；目录不可写时明确报错，
 
 配置修改先校验并通过 QSaveFile 提交，成功后发布运行配置；失败时保留原有效配置并提示。禁止开启直接覆盖的降级写入。损坏或不支持的配置保留原文件，要求用户明确重置，不自动覆盖。保存机制见 [QSaveFile 文档](https://doc.qt.io/qt-6/qsavefile.html)。
 
-仅在内容或选择变化时重绘。轮盘可保留窗口以降低再次呼出的延迟，隐藏时停止绘制活动；设置窗口关闭后释放界面资源。原生句柄统一由 RAII 对象释放。诊断只记录错误、状态转换和性能数据，不记录全局输入内容。
+轮盘呼出采用 [QVariantAnimation](https://doc.qt.io/qt-6/qvariantanimation.html)，隐藏时立即终止。其余时间仅在内容或选择变化时重绘。轮盘可保留窗口以降低再次呼出的延迟，隐藏时停止绘制活动；设置窗口关闭后释放界面资源。原生句柄统一由 RAII 对象释放。诊断只记录错误、状态转换和性能数据，不记录全局输入内容。
 
 ## 实施与验证
 
@@ -121,3 +122,5 @@ Windows 随包携带所需 Qt 插件和运行库，在未安装开发工具的�
 标注命令使用 [QUndoStack](https://doc.qt.io/qt-6/qundostack.html)；裁剪保留屏幕抓取结果的原始像素，参见 [QScreen::grabWindow](https://doc.qt.io/qt-6/qscreen.html#grabWindow)。Windows 捕获前使用 [DwmFlush](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/nf-dwmapi-dwmflush) 同步本程序待提交画面；不使用固定延时。显示器坐标与捕获像素的映射以截图会话代码为准。PNG 经 QImageWriter 编码并由 QSaveFile 提交。
 
 屏幕标注使用实时透明覆盖层，鼠标穿透遵循 [Windows layered window hit testing](https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features#layered-windows)。窗口焦点策略参考 [Windows 无激活窗口](https://devblogs.microsoft.com/oldnewthing/20240919-00/?p=110283)。文字输入使用 [QDialog 异步对话框](https://doc.qt.io/qt-6/qdialog.html#open)。浮动工具栏独立于覆盖层；状态与资源生命周期以 [屏幕标注会话](../src/tools/screen_annotation_session.cpp) 为准。产品交互参考 [MarkerOn](https://github.com/ifer47/markeron)。
+
+应用与网页启动遵循 [QProcess::startDetached](https://doc.qt.io/qt-6/qprocess.html#startDetached) 和 [QDesktopServices](https://doc.qt.io/qt-6/qdesktopservices.html)，参数与路径不拼接为 shell 命令。动作与完整目标在轮盘隐藏后统一分发；执行入口见上方索引。

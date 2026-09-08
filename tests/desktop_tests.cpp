@@ -18,8 +18,13 @@
 using namespace wheel;
 class DesktopTests : public QObject {
     Q_OBJECT
+    static Config shortcutConfig() {
+        auto c=wheel::defaultConfig();
+        c.slots[0]={"Copy",{Qt::Key_C,bit(Modifier::Control)}};
+        return c;
+    }
     static Config combinationConfig() {
-        auto c = defaultConfig(); c.modifier = Modifier::Control; c.button = MouseButton::Right;
+        auto c = shortcutConfig(); c.modifier = Modifier::Control; c.button = MouseButton::Right;
         return c;
     }
     std::unique_ptr<InputService> input_;
@@ -114,24 +119,28 @@ private Q_SLOTS:
     void toolDispatchAfterHide_data() {
         QTest::addColumn<int>("actionKind");
         QTest::newRow("pin")<<1; QTest::newRow("screen annotation")<<2;
+        QTest::newRow("application")<<3; QTest::newRow("website")<<4;
     }
     void toolDispatchAfterHide() {
         QFETCH(int,actionKind);
         activateEditor(); if(QTest::currentTestFailed()) return;
-        auto config=defaultConfig(); config.slots[0]={QStringLiteral("工具"),{},static_cast<ActionKind>(actionKind)};
+        auto config=shortcutConfig(); config.slots[0]={QStringLiteral("工具"),{},static_cast<ActionKind>(actionKind)};
+        if(actionKind==int(ActionKind::Application)) config.slots[0].target="C:/Program Files/应用/test.exe";
+        if(actionKind==int(ActionKind::Website)) config.slots[0].target="https://example.com/path?a=1&b=2";
         input_->configure(config); QTest::qWait(40);
-        QSignalSpy screenshot(input_.get(),&InputService::toolRequested);
+        QSignalSpy screenshot(input_.get(),&InputService::actionRequested);
         QApplication::clipboard()->setText("unchanged");
         const auto previous=shown_; mouse(true,true); QTRY_VERIFY(shown_>previous);
         QCOMPARE(screenshot.size(),0);
         SetCursorPos(qRound(geometry_.center.x()),qRound(geometry_.center.y()-geometry_.radius*0.65));
         mouse(false,true); QTRY_COMPARE(screenshot.size(),1);
-        QCOMPARE(screenshot.first().first().value<ActionKind>(),static_cast<ActionKind>(actionKind));
+        QCOMPARE(screenshot.first().first().value<Slot>().kind,static_cast<ActionKind>(actionKind));
+        QCOMPARE(screenshot.first().first().value<Slot>(),config.slots[0]);
         QVERIFY(!wheel_->isVisible()); QCOMPARE(QApplication::clipboard()->text(),QString("unchanged"));
     }
     void middleHoldCopiesAndCancels() {
         activateEditor(); if (QTest::currentTestFailed()) return;
-        input_->configure(defaultConfig()); QTest::qWait(40);
+        input_->configure(shortcutConfig()); QTest::qWait(40);
         const auto beforeDown = middleDown_, beforeUp = middleUp_;
         QApplication::clipboard()->setText("before");
         auto previous = shown_; mouse(true, true); QTRY_VERIFY(shown_ > previous);

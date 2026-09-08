@@ -14,6 +14,10 @@ Windows 鼠标快捷键轮盘。首次运行打开设置，点击「完成」后
 
 解压整个便携包后运行 `MouseWheel.exe`。保留随包的 DLL 与 `platforms` 目录；程序目录需要可写。
 
+## 轮盘与启动
+
+在设置中选择槽位形状、导入中心图片，并将动作设为「打开应用」或「打开网页」。应用选择 `.exe` 或 `.lnk`，网页可直接填写域名。常用快捷键显示为图标；具体交互见 [产品设计](docs/product-design.md#主要功能)。
+
 ## 内置工具
 
 从托盘或轮盘槽位选择「截图贴图」或「屏幕标注」。功能范围与交互见 [产品设计](docs/product-design.md#内置工具)。新配置的默认槽位见 [defaultConfig](src/core/model.cpp)，已有槽位可在设置中更换动作。
@@ -26,7 +30,7 @@ Windows 10 1809+／Windows 11 x64，Python 3.11+。依赖版本见 [toolchain.js
 ./scripts/bootstrap.ps1
 ./scripts/build.ps1
 ./scripts/test.ps1 -Pattern '^(core|config|annotation|injection)$'
-./scripts/test.ps1 -Pattern '^(ui|desktop|screenshot|screen_annotation|app)$'
+./scripts/test.ps1 -Pattern '^(ui|desktop|screenshot|screen_annotation|app|launcher)$'
 ./scripts/build.ps1 -Package
 ```
 

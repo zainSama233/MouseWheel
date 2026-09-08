@@ -18,3 +18,8 @@ if (!(Test-Path "$qt/lib/cmake/Qt6/Qt6Config.cmake")) {
     & .tools/python/Scripts/python.exe -m aqt install-qt windows desktop $versions.qt win64_msvc2022_64 -O $qtBase --archives qtbase qttools
     if ($LASTEXITCODE) { throw 'Qt installation failed; inspect aqtinstall.log' }
 }
+
+if (!(Test-Path "$qt/lib/cmake/Qt6Svg/Qt6SvgConfig.cmake")) {
+    & .tools/python/Scripts/python.exe -m aqt install-qt windows desktop $versions.qt win64_msvc2022_64 -O $qtBase --archives qtsvg
+    if ($LASTEXITCODE) { throw 'Qt SVG installation failed' }
+}

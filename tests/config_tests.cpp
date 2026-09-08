@@ -1,11 +1,23 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QBuffer>
+#include <QImage>
 #include "config/config_store.h"
 using namespace wheel;
 class ConfigTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void launcherAppearanceRoundTrip() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
+        auto config=defaultConfig(); config.shape=WheelShape::Hexagon;
+        QImage image(96,96,QImage::Format_ARGB32); image.fill(Qt::red);
+        QBuffer buffer(&config.centerImage); QVERIFY(buffer.open(QIODevice::WriteOnly)); QVERIFY(image.save(&buffer,"PNG"));
+        config.slots[0]={QStringLiteral("应用"),{},ActionKind::Application,"C:/应用 空格/app.exe"};
+        config.slots[1]={QStringLiteral("网站"),{},ActionKind::Website,"https://example.com/path?q=a&b=2"};
+        QVERIFY(store.commit(config)); ConfigStore reopened(store.path()); QVERIFY(reopened.load()); QCOMPARE(reopened.current(),config);
+        config.centerImage="invalid"; QVERIFY(!store.commit(config));
+    }
     void screenshotRoundTripAndValidation() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
         auto config=defaultConfig(); config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};

@@ -14,7 +14,7 @@ Decision Interaction::release(MouseButton b, QPointF position) {
     Decision result{.consumed = true, .session = session_, .target = target_};
     if (!active_) return result;
     result.hide = true;
-    const int selected = geometry_.hit(position);
+    const int selected = geometry_.hit(position,snapshot_.shape);
     if (selected >= 0 && snapshot_.slots[selected].enabled())
         result.action = snapshot_.slots[selected];
     active_ = false;
@@ -22,7 +22,7 @@ Decision Interaction::release(MouseButton b, QPointF position) {
 }
 Decision Interaction::move(QPointF position) {
     if (!active_) return {};
-    const auto selected = geometry_.hit(position);
+    const auto selected = geometry_.hit(position,snapshot_.shape);
     if (selected == selection_) return {};
     selection_ = selected;
     return {.selectionChanged = true, .session = session_, .selection = selected};
