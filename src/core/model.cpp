@@ -74,6 +74,19 @@ const QList<BuiltinIcon>& builtinIcons() {
         {"scan",QStringLiteral("识别")},{"save",QStringLiteral("保存")},{"camera",QStringLiteral("截图")},
         {"pencil",QStringLiteral("画笔")},{"globe",QStringLiteral("网页")},{"app-window",QStringLiteral("窗口")},
         {"folder",QStringLiteral("文件夹")},{"terminal",QStringLiteral("终端")},{"settings",QStringLiteral("设置")},
+        {"lock-keyhole",QStringLiteral("锁屏")},
+        {"volume-2",QStringLiteral("音量增加")},
+        {"volume-1",QStringLiteral("音量降低")},
+        {"volume-x",QStringLiteral("静音")},
+        {"circle-play",QStringLiteral("播放／暂停")},
+        {"skip-forward",QStringLiteral("下一首")},
+        {"skip-back",QStringLiteral("上一首")},
+        {"panels-top-left",QStringLiteral("任务视图")},
+        {"panel-left-close",QStringLiteral("上一个虚拟桌面")},
+        {"panel-right-close",QStringLiteral("下一个虚拟桌面")},
+        {"square-plus",QStringLiteral("新建虚拟桌面")},
+        {"monitor-x",QStringLiteral("关闭虚拟桌面")},
+        {"monitor",QStringLiteral("显示桌面")},
         {"x",QStringLiteral("取消")},{"plus",QStringLiteral("添加")}};
     return icons;
 }
@@ -99,7 +112,23 @@ IconSpec suggestedIcon(const Action& action) {
     case ActionKind::Command: name="terminal"; break;
     case ActionKind::Ocr: name="scan"; break;
     case ActionKind::Window: name="app-window"; break;
-    case ActionKind::System: name="settings"; break;
+    case ActionKind::System:
+        switch(std::get<SystemAction>(action).operation) {
+        case SystemOperation::Lock: name="lock-keyhole"; break;
+        case SystemOperation::VolumeUp: name="volume-2"; break;
+        case SystemOperation::VolumeDown: name="volume-1"; break;
+        case SystemOperation::Mute: name="volume-x"; break;
+        case SystemOperation::PlayPause: name="circle-play"; break;
+        case SystemOperation::NextTrack: name="skip-forward"; break;
+        case SystemOperation::PreviousTrack: name="skip-back"; break;
+        case SystemOperation::TaskView: name="panels-top-left"; break;
+        case SystemOperation::DesktopLeft: name="panel-left-close"; break;
+        case SystemOperation::DesktopRight: name="panel-right-close"; break;
+        case SystemOperation::NewDesktop: name="square-plus"; break;
+        case SystemOperation::CloseDesktop: name="monitor-x"; break;
+        case SystemOperation::ShowDesktop: name="monitor"; break;
+        }
+        break;
     }
     return {IconSource::Builtin,name,{}};
 }

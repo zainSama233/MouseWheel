@@ -15,7 +15,7 @@
 - [轮盘](../src/ui/wheel_window.h)、[设置](../src/ui/settings_window.h)、[共享主题](../src/ui/theme.h)
 - [标注模型与撤销](../src/tools/annotation_document.h)、[独立屏幕标注](../src/tools/screen_annotation_session.h)、[贴图窗口](../src/tools/pinned_image.h)、[截图会话](../src/tools/screenshot_session.h)
 - [程序图标与快捷方式解析](../src/platform/program_icon.h)、[网站图标请求](../src/tools/website_icon.h)
-- [启动目标执行](../src/tools/launcher.h)、[动作图标](../src/ui/action_icons.h)、[图标来源](../src/ui/icons/SOURCE.md)
+- [启动目标执行](../src/tools/launcher.h)、[动作图标](../src/ui/action_icons.h)、[图标来源](../src/ui/icons/SOURCE.md)、[系统动作图标映射](../src/core/model.cpp)、[图标渲染与自动选择测试](../tests/icon_tests.cpp)
 - [应用装配](../src/app.cpp)、[启动入口](../src/main.cpp)
 - [固定依赖版本](../toolchain.json)、[构建与打包](../scripts/build.ps1)、[测试入口](../scripts/test.ps1)
 - [实测结果与尚未验证的项目](validation.md)

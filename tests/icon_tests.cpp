@@ -6,6 +6,7 @@
 #include <QComboBox>
 #include <QTemporaryDir>
 #include "tools/website_icon.h"
+#include "ui/action_icons.h"
 #include "ui/slot_editor.h"
 #include "core/image_asset.h"
 #include "config/config_store.h"
@@ -34,6 +35,35 @@ class IconTests:public QObject {
     QByteArray png_;
 private Q_SLOTS:
     void initTestCase() {QImage image(64,64,QImage::Format_ARGB32);image.fill(Qt::red);QBuffer buffer(&png_);buffer.open(QIODevice::WriteOnly);QVERIFY(image.save(&buffer,"PNG"));}
+    void systemActionsHaveDistinctVectorIcons() {
+        const QStringList expected{"lock-keyhole","volume-2","volume-1","volume-x","circle-play","skip-forward","skip-back","panels-top-left","panel-left-close","panel-right-close","square-plus","monitor-x","monitor"};
+        QCOMPARE(expected.size(),int(SystemOperation::ShowDesktop)+1);
+        for(int i=0;i<expected.size();++i) {
+            Slot slot{QStringLiteral("System"),SystemAction{SystemOperation(i)}};
+            slot.icon={IconSource::Automatic,{},{}};
+            QCOMPARE(suggestedIcon(slot.action).value,expected[i]);
+            QVERIFY(std::any_of(builtinIcons().begin(),builtinIcons().end(),[&](const auto& icon){return icon.id==expected[i];}));
+            for(const QColor color:{QColor("#253047"),QColor("#554a35"),QColor("#e5e9f0")}) {
+                const auto image=actionIcon(slot,color).pixmap(48,48).toImage();
+                QVERIFY(!image.isNull()); bool visible=false;
+                for(int y=0;y<image.height();++y) for(int x=0;x<image.width();++x) visible|=image.pixelColor(x,y).alpha()>0;
+                QVERIFY(visible);
+            }
+        }
+    }
+    void systemEditorKeepsAutomaticAndManualIconsIndependent() {
+        SlotEditor editor(0); Slot slot{QStringLiteral("System"),SystemAction{}};
+        slot.icon={IconSource::Automatic,{},{}}; editor.setSlot(slot);
+        QComboBox* operation=nullptr;
+        for(auto* combo:editor.findChildren<QComboBox*>()) if(combo->count()==13 && combo->itemText(0)==QStringLiteral("锁屏")) operation=combo;
+        QVERIFY(operation); QSignalSpy edited(&editor,&SlotEditor::edited);
+        operation->setCurrentIndex(int(SystemOperation::VolumeUp));
+        QVERIFY(!edited.isEmpty()); QCOMPARE(suggestedIcon(editor.slot().action).value,QString("volume-2"));
+        QCOMPARE(editor.slot().icon.source,IconSource::Automatic);
+        slot=editor.slot();slot.icon={IconSource::Builtin,"camera",{}};editor.setSlot(slot);
+        operation->setCurrentIndex(int(SystemOperation::Lock));
+        QCOMPARE(editor.slot().icon,slot.icon);
+    }
     void decodesIcoAndSvg() {
         const auto image=QImage::fromData(png_); QByteArray ico; QBuffer buffer(&ico); buffer.open(QIODevice::WriteOnly);
         QVERIFY(image.save(&buffer,"ICO")); QByteArray normalized; QString error;
