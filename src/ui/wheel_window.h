@@ -13,18 +13,26 @@ public:
     void dismiss(quint64 session);
     void preview(const Config& config);
 Q_SIGNALS:
+    void slotClicked(int index);
+    void slotsSwapped(int source,int target);
     void hidden(quint64 session);
     void firstPaint(quint64 session, qint64 nanoseconds);
 protected:
+    void mousePressEvent(QMouseEvent*) override;
+    void mouseMoveEvent(QMouseEvent*) override;
+    void mouseReleaseEvent(QMouseEvent*) override;
     void paintEvent(QPaintEvent*) override;
     bool nativeEvent(const QByteArray&, void*, qintptr*) override;
 private:
     void applyConfig(const Config& config);
+    int previewSlotAt(QPointF position) const;
     QVariantAnimation opening_;
     double opacity_=1;
     std::array<QIcon,8> icons_, selectedIcons_;
     QIcon cancelIcon_;
     QPixmap centerImage_;
+    QPointF dragStart_;
+    int dragSource_=-1;
     bool cached_=false;
     bool overlay_;
     bool painted_ = false;

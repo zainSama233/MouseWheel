@@ -34,6 +34,15 @@ bool ConfigStore::load() {
         candidate.centerImage=QByteArray::fromBase64(encoded,QByteArray::AbortOnBase64DecodingErrors);
         if(!encoded.isEmpty() && candidate.centerImage.isEmpty()) valid=false;
     }
+    if(obj.contains("triggerRules")) {
+        const auto rules=obj["triggerRules"].toObject();
+        if(!obj["triggerRules"].isObject() || !rules["pauseFullscreen"].isBool() || !rules["excludedApplications"].isArray()) valid=false;
+        candidate.triggerRules.pauseFullscreen=rules["pauseFullscreen"].toBool();
+        for(const auto& path:rules["excludedApplications"].toArray()) {
+            if(!path.isString()) valid=false;
+            candidate.triggerRules.excludedApplications.append(path.toString());
+        }
+    }
     if (valid) {
         for (int i=0; i<8; ++i) {
             auto value = slots[i].toObject();
@@ -73,6 +82,8 @@ bool ConfigStore::commit(const Config& config) {
     QJsonObject obj{{"version",2}, {"modifier",static_cast<int>(config.modifier)},
                     {"button",static_cast<int>(config.button)}, {"theme",static_cast<int>(config.theme)},
                     {"slots",slots}, {"shape",static_cast<int>(config.shape)}, {"centerImage",QString::fromLatin1(config.centerImage.toBase64())}};
+    obj["triggerRules"]=QJsonObject{{"pauseFullscreen",config.triggerRules.pauseFullscreen},
+        {"excludedApplications",QJsonArray::fromStringList(config.triggerRules.excludedApplications)}};
     QSaveFile file(path_);
     file.setDirectWriteFallback(false);
     const auto data = QJsonDocument(obj).toJson();

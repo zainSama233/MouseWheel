@@ -1,4 +1,5 @@
 #include "ui/slot_editor.h"
+#include "ui/application_picker.h"
 #include "ui/shortcut_editor.h"
 #include "ui/action_icons.h"
 #include "core/image_asset.h"
@@ -40,7 +41,10 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
         auto* field=new QComboBox; field->addItems(entries); form->addRow(label,field); connect(field,&QComboBox::currentIndexChanged,this,changed); return field;
     };
     const auto browse=[&](QFormLayout* form,QLineEdit* field,bool directory) {
-        auto* button=new QPushButton(QStringLiteral("选择…")); form->addRow(QString{},button);
+        auto* button=new QPushButton(QStringLiteral("选择…"));
+        int row=0; QFormLayout::ItemRole role; form->getWidgetPosition(field,&row,&role); form->removeWidget(field);
+        auto* controls=new QHBoxLayout; controls->addWidget(field,1); controls->addWidget(button);
+        form->setLayout(row,QFormLayout::FieldRole,controls);
         connect(button,&QPushButton::clicked,this,[this,field,directory]{
             const auto path=directory?QFileDialog::getExistingDirectory(this,QStringLiteral("选择文件夹")):QFileDialog::getOpenFileName(this,QStringLiteral("选择文件"));
             if(path.isEmpty()) return; field->setText(path);
@@ -58,6 +62,16 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     shortcut_=new ShortcutEditor; forms[0]->addRow(shortcut_); connect(shortcut_,&ShortcutEditor::edited,this,[this]{if(name_->text().isEmpty()) name_->setText(shortcutText(shortcut_->shortcut()).left(12)); if(!loading_) Q_EMIT edited();});
     forms[1]->addRow(new QLabel(QStringLiteral("框选屏幕，生成独立贴图"))); forms[2]->addRow(new QLabel(QStringLiteral("直接在桌面绘制标注")));
     appPath_=line(forms[3],QStringLiteral("文件"),QString("slot-app-%1").arg(index)); browse(forms[3],appPath_,false);
+    auto* findApp=new QPushButton(QStringLiteral("搜索应用 / 运行窗口…")); findApp->setObjectName(QString("slot-find-app-%1").arg(index)); forms[3]->addRow(findApp);
+    connect(findApp,&QPushButton::clicked,this,[this]{
+        auto* picker=new ApplicationPicker(ApplicationPicker::Purpose::Launch,this);
+        connect(picker,&ApplicationPicker::chosen,this,[this](const ApplicationEntry& entry,bool useIcon){
+            auto current=slot(); current.action=ApplicationAction{entry.path,{},{},normal_->isChecked()};
+            if(current.name.isEmpty() || current.name==actionKindName(ActionKind::Application)) current.name=entry.name.left(12);
+            if(useIcon) current.icon={IconSource::Program,entry.path,{}};
+            setSlot(current); Q_EMIT edited();
+        }); picker->open();
+    });
     arguments_=line(forms[3],QStringLiteral("参数")); directory_=line(forms[3],QStringLiteral("工作目录")); browse(forms[3],directory_,true);
     normal_=new QCheckBox(QStringLiteral("使用普通权限启动")); normal_->setChecked(true); forms[3]->addRow(normal_); connect(normal_,&QCheckBox::toggled,this,changed);
     url_=line(forms[4],QStringLiteral("网址"),QString("slot-target-%1").arg(index));

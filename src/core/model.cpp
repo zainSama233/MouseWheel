@@ -1,4 +1,5 @@
 #include "core/model.h"
+#include <QDir>
 #include <QKeySequence>
 #include <algorithm>
 #include <cmath>
@@ -39,7 +40,18 @@ bool supportedKey(int key) {
            key == Qt::Key_PageDown || (key >= Qt::Key_Left && key <= Qt::Key_Down) ||
            key == Qt::Key_Escape || key == Qt::Key_Pause || key == Qt::Key_Cancel;
 }
+bool TriggerRules::allows(const QString& executable,bool fullscreen) const {
+    if(pauseFullscreen && fullscreen) return false;
+    const auto path=QDir::cleanPath(QDir::fromNativeSeparators(executable));
+    for(const auto& excluded:excludedApplications)
+        if(path.compare(QDir::cleanPath(QDir::fromNativeSeparators(excluded)),Qt::CaseInsensitive)==0) return false;
+    return true;
+}
 QString validate(const Config& c) {
+    if(c.triggerRules.excludedApplications.size()>256) return QStringLiteral("暂停应用最多为 256 个。");
+    for(const auto& path:c.triggerRules.excludedApplications)
+        if(path.isEmpty() || path.size()>32767 || path.contains(QChar::Null) || !QDir::isAbsolutePath(path) || !path.endsWith(".exe",Qt::CaseInsensitive))
+            return QStringLiteral("请选择暂停轮盘的应用程序（完整 EXE 路径）。");
     if (c.modifier != Modifier::None && c.modifier != Modifier::Control && c.modifier != Modifier::Alt &&
         c.modifier != Modifier::Shift && c.modifier != Modifier::Meta)
         return QStringLiteral("请选择一个触发修饰键。");

@@ -10,6 +10,7 @@
 #include <optional>
 #include <variant>
 #include <QList>
+#include <QStringList>
 class QKeySequence;
 namespace wheel {
 enum class Modifier : unsigned { None = 0, Control = 1, Alt = 2, Shift = 4, Meta = 8 };
@@ -85,7 +86,14 @@ struct Slot {
     bool enabled() const { const auto* key=std::get_if<Shortcut>(&action); return !key || key->key!=0; }
     bool operator==(const Slot&) const = default;
 };
+struct TriggerRules {
+    bool pauseFullscreen=false;
+    QStringList excludedApplications;
+    bool allows(const QString& executable,bool fullscreen) const;
+    bool operator==(const TriggerRules&) const = default;
+};
 struct Config {
+    TriggerRules triggerRules;
     Modifier modifier = Modifier::None;
     MouseButton button = MouseButton::Middle;
     Theme theme = Theme::Light;

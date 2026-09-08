@@ -10,6 +10,7 @@ class QPushButton;
 namespace wheel {
 class WheelWindow;
 class SlotEditor;
+class TriggerRulesEditor;
 class SettingsWindow final : public QWidget {
     Q_OBJECT
 public:
@@ -27,6 +28,7 @@ private:
     std::array<SlotEditor*,8> editors_{};
     QLabel* status_;
     WheelWindow* preview_;
+    TriggerRulesEditor* rules_;
     bool populating_ = false;
 };
 }

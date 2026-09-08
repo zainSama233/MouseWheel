@@ -1,6 +1,7 @@
 #include "ui/settings_window.h"
 #include "ui/wheel_window.h"
 #include "ui/slot_editor.h"
+#include "ui/trigger_rules_editor.h"
 #include <QStackedWidget>
 #include <QListWidget>
 #include "ui/theme.h"
@@ -33,7 +34,7 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     auto* layout = new QVBoxLayout(content); layout->setContentsMargins(30,24,30,24); layout->setSpacing(18);
     auto* title = new QLabel(QStringLiteral("鼠标快捷强化")); title->setObjectName("title"); layout->addWidget(title);
     auto* toolbar = new QHBoxLayout;
-    modifier_ = new QComboBox; button_ = new QComboBox; theme_ = new QComboBox;
+    modifier_ = new QComboBox; button_ = new QComboBox; theme_ = new QComboBox; theme_->setObjectName("theme");
     modifier_->addItem(QStringLiteral("无修饰键"),static_cast<int>(Modifier::None));
     modifier_->setObjectName("trigger-modifier"); button_->setObjectName("trigger-button");
     for (auto [name,value] : {std::pair{"Ctrl",Modifier::Control},{"Alt",Modifier::Alt},
@@ -62,6 +63,7 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
         centerImage_=std::move(data); submit();
     });
     connect(clearImage,&QPushButton::clicked,this,[this]{centerImage_.clear(); submit();});
+    rules_=new TriggerRulesEditor; layout->addWidget(rules_); connect(rules_,&TriggerRulesEditor::edited,this,&SettingsWindow::submit);
     auto* body = new QHBoxLayout;
     auto* slots=new QListWidget; slots_=slots; slots->setFrameShape(QFrame::NoFrame); slots->setSpacing(5); slots->setObjectName("slot-list"); slots->setFixedWidth(125);
     auto* pages=new QStackedWidget;
@@ -74,8 +76,17 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     body->addWidget(slots); body->addWidget(pages,1);
     auto* side = new QVBoxLayout;
     preview_ = new WheelWindow(false); preview_->setFixedSize(264,264);
+    preview_->setObjectName("wheel-preview");
+    connect(preview_,&WheelWindow::slotClicked,slots,qOverload<int>(&QListWidget::setCurrentRow));
+    connect(slots,&QListWidget::currentRowChanged,this,[this](int index){preview_->select(0,index);});
+    connect(preview_,&WheelWindow::slotsSwapped,this,[this](int source,int target){
+        const auto first=editors_[source]->slot(),second=editors_[target]->slot();
+        editors_[source]->setSlot(second); editors_[target]->setSlot(first); submit();
+        if(status_->property("failed").toBool()) {editors_[source]->setSlot(first); editors_[target]->setSlot(second);}
+        else slots_->setCurrentRow(target);
+    });
     side->addStretch(); side->addWidget(preview_,0,Qt::AlignCenter);
-    auto* hint = new QLabel(QStringLiteral("从上方起，顺时针排列")); hint->setObjectName("muted");
+    auto* hint = new QLabel(QStringLiteral("点击编辑 · 拖拽交换位置")); hint->setObjectName("muted");
     side->addWidget(hint,0,Qt::AlignCenter); side->addStretch();
     body->addLayout(side); layout->addLayout(body,1);
     status_ = new QLabel; status_->setWordWrap(true); status_->setObjectName("muted"); layout->addWidget(status_);
@@ -103,20 +114,21 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
 void SettingsWindow::populate() {
     populating_ = true;
     const auto& config = store_.current();
+    rules_->setRules(config.triggerRules);
     modifier_->setCurrentIndex(modifier_->findData(static_cast<int>(config.modifier)));
     button_->setCurrentIndex(static_cast<int>(config.button));
     button_->setEnabled(config.modifier != Modifier::None);
     theme_->setCurrentIndex(static_cast<int>(config.theme));
     shape_->setCurrentIndex(static_cast<int>(config.shape)); centerImage_=config.centerImage;
     for(int i=0;i<8;++i) { editors_[i]->setSlot(config.slots[i]); slots_->item(i)->setText(QString::number(i+1)+"  "+(config.slots[i].name.isEmpty()?QStringLiteral("空槽位"):config.slots[i].name)); }
-    setStyleSheet(settingsStyle(config.theme)); preview_->preview(config);
+    setStyleSheet(settingsStyle(config.theme)); preview_->preview(config); preview_->select(0,slots_->currentRow());
     status_->setText(store_.blocked() ? store_.error() : QStringLiteral("自动保存 · 设置打开时暂停轮盘"));
     status_->setProperty("failed",store_.blocked());
     populating_ = false;
 }
 void SettingsWindow::submit() {
     if (populating_) return;
-    Config draft;
+    Config draft; draft.triggerRules=rules_->rules();
     draft.modifier = static_cast<Modifier>(modifier_->currentData().toInt());
     if (draft.modifier == Modifier::None) {
         const QSignalBlocker blocker(button_);

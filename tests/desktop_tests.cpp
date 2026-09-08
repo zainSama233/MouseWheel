@@ -138,6 +138,33 @@ private Q_SLOTS:
         QCOMPARE(screenshot.first().first().value<Slot>(),config.slots[0]);
         QVERIFY(!wheel_->isVisible()); QCOMPARE(QApplication::clipboard()->text(),QString("unchanged"));
     }
+    void applicationExclusionPreservesInputPairs() {
+        activateEditor(); auto config=shortcutConfig();
+        config.triggerRules.excludedApplications={QCoreApplication::applicationFilePath()};
+        input_->configure(config); QTest::qWait(60);
+        const auto down=middleDown_,up=middleUp_; const auto previous=shown_;
+        mouse(true,true); QCOMPARE(shown_,previous);
+        input_->configure(shortcutConfig()); QTest::qWait(40); mouse(false,true);
+        QTRY_COMPARE(middleDown_,down+1); QTRY_COMPARE(middleUp_,up+1);
+        mouse(true,true); QTRY_VERIFY(shown_>previous);
+        input_->configure(config); QTRY_VERIFY(!wheel_->isVisible()); mouse(false,true);
+        QCOMPARE(middleDown_,down+1); QCOMPARE(middleUp_,up+1);
+        input_->configure(shortcutConfig()); QTest::qWait(40);
+        const auto resumed=shown_; mouse(true,true); QTRY_VERIFY(shown_>resumed); mouse(false,true);
+    }
+    void fullscreenPauseAndResume() {
+        activateEditor(); auto config=shortcutConfig(); config.triggerRules.pauseFullscreen=true;
+        input_->configure(config); QTest::qWait(40);
+        const auto restore=qScopeGuard([&]{editor_.showNormal();});
+        auto previous=shown_; mouse(true,true); QTRY_VERIFY(shown_>previous);
+        editor_.showFullScreen(); QTRY_VERIFY(!wheel_->isVisible()); mouse(false,true);
+        activateEditor(); QTest::qWait(80);
+        previous=shown_; const auto down=middleDown_,up=middleUp_;
+        mouse(true,true); mouse(false,true); QCOMPARE(shown_,previous);
+        QTRY_COMPARE(middleDown_,down+1); QTRY_COMPARE(middleUp_,up+1);
+        editor_.showNormal(); activateEditor(); QTest::qWait(80);
+        mouse(true,true); QTRY_VERIFY(shown_>previous); mouse(false,true);
+    }
     void middleHoldCopiesAndCancels() {
         activateEditor(); if (QTest::currentTestFailed()) return;
         input_->configure(shortcutConfig()); QTest::qWait(40);

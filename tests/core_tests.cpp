@@ -8,6 +8,26 @@ class CoreTests : public QObject {
         return c;
     }
 private Q_SLOTS:
+    void contextPermissionPreservesPairs() {
+        auto c=defaultConfig(); Interaction core; Geometry g{{400,400}};
+        QVERIFY(!core.press(MouseButton::Middle,0,c,g,1,false).consumed);
+        QVERIFY(!core.release(MouseButton::Middle,g.center).consumed);
+        QVERIFY(core.press(MouseButton::Middle,0,c,g,1,true).show);
+        QVERIFY(core.press(MouseButton::Middle,0,c,g,1,false).consumed);
+        core.cancel(); QVERIFY(core.release(MouseButton::Middle,g.center).consumed);
+        QVERIFY(!core.press(MouseButton::Middle,0,c,g,1,false).show);
+        QVERIFY(!core.release(MouseButton::Middle,g.center).consumed);
+        QVERIFY(core.press(MouseButton::Middle,0,c,g,1,true).show);
+    }
+    void triggerRulesMatchExecutableIdentity() {
+        TriggerRules rules; rules.excludedApplications={"C:/Apps/Editor.exe"};
+        QVERIFY(!rules.allows("c:\\apps\\EDITOR.EXE",false));
+        QVERIFY(rules.allows("D:/Apps/Editor.exe",false));
+        QVERIFY(rules.allows("C:/Apps/Other.exe",true));
+        rules.pauseFullscreen=true;
+        QVERIFY(!rules.allows("C:/Apps/Other.exe",true));
+        QVERIFY(rules.allows("C:/Apps/Other.exe",false));
+    }
     void shapedHitRegions() {
         for(auto shape:{WheelShape::Sector,WheelShape::Circle,WheelShape::Hexagon}) {
             auto geometry=Geometry::fit({400,400},{0,0,1000,1000},1);

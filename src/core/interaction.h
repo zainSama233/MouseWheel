@@ -14,7 +14,7 @@ struct Decision {
 class Interaction final {
 public:
     Decision press(MouseButton button, Modifiers modifiers, const Config& config,
-                   const Geometry& geometry, quintptr target);
+                   const Geometry& geometry, quintptr target, bool permitted=true);
     Decision release(MouseButton button, QPointF position);
     Decision move(QPointF position);
     Decision escape(bool down);

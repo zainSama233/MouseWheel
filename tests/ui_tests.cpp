@@ -4,10 +4,15 @@
 #include <QPushButton>
 #include <Windows.h>
 #include "ui/slot_editor.h"
+#include "ui/application_picker.h"
+#include "ui/theme.h"
+#include "ui/trigger_rules_editor.h"
 #include "ui/shortcut_editor.h"
 #include "platform/windows_injection.h"
 #include "platform/shortcut_capture.h"
 #include <QLineEdit>
+#include <QListWidget>
+#include <QCheckBox>
 #include <QKeySequenceEdit>
 #include <QLabel>
 #include <QDir>
@@ -24,6 +29,93 @@ using namespace wheel;
 class UiTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void applicationPickerAppliesTargetAndOptionalIcon() {
+        SlotEditor editor(0); Slot original{"Custom",ApplicationAction{QCoreApplication::applicationFilePath()}};
+        original.icon={IconSource::Builtin,"pencil",{}}; editor.setSlot(original); editor.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor));
+        for(bool useIcon:{false,true}) {
+            QTest::mouseClick(editor.findChild<QPushButton*>("slot-find-app-0"),Qt::LeftButton);
+            auto* picker=editor.findChild<ApplicationPicker*>(); QVERIFY(picker);
+            auto* list=picker->findChild<QListWidget*>("application-results");
+            QTRY_VERIFY_WITH_TIMEOUT(list->count()>0,15000);
+            picker->findChild<QCheckBox*>("application-use-icon")->setChecked(useIcon);
+            QSignalSpy chosen(picker,&ApplicationPicker::chosen);
+            QTest::mouseClick(picker->findChild<QPushButton*>("application-select"),Qt::LeftButton);
+            QCOMPARE(chosen.size(),1); const auto selected=chosen.first()[0].value<ApplicationEntry>();
+            QCOMPARE(std::get<ApplicationAction>(editor.slot().action).path,selected.path);
+            QCOMPARE(editor.slot().name,original.name);
+            if(useIcon) {QCOMPARE(editor.slot().icon.source,IconSource::Program); QCOMPARE(editor.slot().icon.value,selected.path);}
+            else QCOMPARE(editor.slot().icon,original.icon);
+            QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+        }
+        auto* picker=new ApplicationPicker(ApplicationPicker::Purpose::Launch,&editor);
+        QPointer<ApplicationPicker> guard=picker; picker->open(); picker->close();
+        QTRY_VERIFY(guard.isNull());
+    }
+    void exclusionPickerSearchSaveAndRemove() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.commit(defaultConfig()));
+        SettingsWindow settings(store); settings.show(); QVERIFY(QTest::qWaitForWindowExposed(&settings));
+        QTest::mouseClick(settings.findChild<QPushButton*>("exclude-application"),Qt::LeftButton);
+        auto* picker=settings.findChild<ApplicationPicker*>(); QVERIFY(picker);
+        auto* results=picker->findChild<QListWidget*>("application-results");
+        QTRY_VERIFY_WITH_TIMEOUT(results->count()>0,15000);
+        auto* search=picker->findChild<QLineEdit*>("application-search");
+        search->setText("__no_such_application_7dd948"); QCOMPARE(results->count(),0);
+        QVERIFY(!picker->findChild<QPushButton*>("application-select")->isEnabled());
+        search->clear(); QVERIFY(results->count()>0); QSignalSpy chosen(picker,&ApplicationPicker::chosen);
+        QTest::keyClick(search,Qt::Key_Return);
+        QCOMPARE(chosen.size(),1); const auto selected=chosen.first()[0].value<ApplicationEntry>();
+        QCOMPARE(store.current().triggerRules.excludedApplications,QStringList{selected.executable});
+        ConfigStore reopened(store.path()); QVERIFY(reopened.load()); QCOMPARE(reopened.current(),store.current());
+        auto* exclusions=settings.findChild<QListWidget*>("excluded-applications"); exclusions->setCurrentRow(0);
+        QTest::mouseClick(settings.findChild<QPushButton*>("remove-excluded-application"),Qt::LeftButton);
+        QVERIFY(store.current().triggerRules.excludedApplications.isEmpty());
+        QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+    }
+    void optimizationScreenshots() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); auto config=defaultConfig();
+        config.slots[2]={QStringLiteral("记事本"),ApplicationAction{"C:/Windows/System32/notepad.exe"}};
+        config.triggerRules.pauseFullscreen=true; config.triggerRules.excludedApplications={"C:/Windows/System32/notepad.exe"};
+        QVERIFY(store.commit(config)); SettingsWindow settings(store); settings.show();
+        settings.findChild<QListWidget*>("slot-list")->setCurrentRow(2);
+        QVERIFY(QTest::qWaitForWindowExposed(&settings)); QDir().mkpath("artifacts");
+        for(int theme=0;theme<3;++theme) {
+            settings.findChild<QComboBox*>("theme")->setCurrentIndex(theme); QTest::qWait(30);
+            QVERIFY(settings.grab().save(QString("artifacts/optimization-%1.png").arg(theme)));
+        }
+        auto* picker=new ApplicationPicker(ApplicationPicker::Purpose::Launch,&settings); picker->open();
+        QTRY_VERIFY_WITH_TIMEOUT(picker->findChild<QListWidget*>("application-results")->count()>0,15000);
+        QVERIFY(picker->grab().save("artifacts/application-picker.png")); picker->close();
+        QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+    }
+    void failedSwapPreservesDraftAndSavedConfig() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.commit(defaultConfig()));
+        SettingsWindow settings(store); const auto before=store.current();
+        auto* editor=settings.findChild<SlotEditor*>("slot-editor-2"); auto unfinished=editor->slot();
+        unfinished.action=ApplicationAction{}; editor->setSlot(unfinished);
+        auto* preview=settings.findChild<WheelWindow*>(); Q_EMIT preview->slotsSwapped(2,3);
+        QCOMPARE(editor->slot(),unfinished); QCOMPARE(store.current(),before);
+    }
+    void previewSelectsAndSwapsWholeSlots() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
+        auto config=defaultConfig(); config.slots[2]={"Web",WebsiteAction{"https://example.com"}};
+        config.slots[2].icon={IconSource::Builtin,"pencil",{}}; QVERIFY(store.commit(config));
+        SettingsWindow settings(store); settings.show(); QVERIFY(QTest::qWaitForWindowExposed(&settings));
+        auto* preview=settings.findChild<WheelWindow*>(); auto* list=settings.findChild<QListWidget*>("slot-list");
+        QVERIFY(preview); QVERIFY(list);
+        const auto point=[&](int i){return (QPointF(preview->width()/2.,preview->height()/2.)+slotCenter(i)*preview->width()/(WheelRadius*2)).toPoint();};
+        for(auto shape:{WheelShape::Circle,WheelShape::Hexagon,WheelShape::Sector}) {
+            settings.findChild<QComboBox*>("wheel-shape")->setCurrentIndex(int(shape));
+            auto before=store.current(); QTest::mouseClick(preview,Qt::LeftButton,Qt::NoModifier,point(2)); QCOMPARE(list->currentRow(),2);
+            QTest::mousePress(preview,Qt::LeftButton,Qt::NoModifier,point(2));
+            QTest::mouseMove(preview,point(5)); QTest::mouseRelease(preview,Qt::LeftButton,Qt::NoModifier,point(5));
+            QCOMPARE(store.current().slots[5],before.slots[2]); QCOMPARE(store.current().slots[2],before.slots[5]); QCOMPARE(list->currentRow(),5);
+            before=store.current(); QTest::mousePress(preview,Qt::LeftButton,Qt::NoModifier,point(5));
+            QTest::mouseRelease(preview,Qt::LeftButton,Qt::NoModifier,QPoint(preview->width()/2,preview->height()/2)); QCOMPARE(store.current(),before);
+        }
+        ConfigStore reopened(store.path()); QVERIFY(reopened.load()); QCOMPARE(reopened.current(),store.current());
+        settings.findChild<QCheckBox*>("pause-fullscreen")->setChecked(true); QVERIFY(store.current().triggerRules.pauseFullscreen);
+    }
     void iconSurvivesActionChange() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load()); SettingsWindow settings(store);
         auto* symbol=settings.findChild<QComboBox*>("slot-symbol-2"); symbol->setCurrentIndex(symbol->findData("copy"));

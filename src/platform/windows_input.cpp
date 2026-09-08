@@ -1,6 +1,7 @@
 #include "platform/input_service.h"
 #include "platform/windows_injection.h"
 #include "platform/desktop_actions.h"
+#include "platform/window_context.h"
 #include "core/interaction.h"
 #include "core/clock.h"
 #include <QThread>
@@ -24,6 +25,7 @@ public:
     ~WindowsInput() override {
         keyboard_.reset(); mouse_.reset();
         if (focus_) UnhookWinEvent(focus_);
+        if (location_) UnhookWinEvent(location_);
         if (window_) { WTSUnRegisterSessionNotification(window_); DestroyWindow(window_); }
         self_ = nullptr;
     }
@@ -37,11 +39,16 @@ public:
         window_ = CreateWindowExW(0,name,L"",WS_POPUP,0,0,0,0,nullptr,nullptr,cls.hInstance,nullptr);
         focus_ = SetWinEventHook(EVENT_SYSTEM_FOREGROUND,EVENT_SYSTEM_FOREGROUND,nullptr,
                                 focusProc,0,0,WINEVENT_OUTOFCONTEXT);
-        notificationsReady_ = window_ && focus_ &&
+        location_=SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE,EVENT_OBJECT_LOCATIONCHANGE,nullptr,locationProc,0,0,WINEVENT_OUTOFCONTEXT);
+        refreshContext();
+        notificationsReady_ = window_ && focus_ && location_ &&
                               WTSRegisterSessionNotification(window_, NOTIFY_FOR_THIS_SESSION);
         install();
     }
-    void configure(Config config) { config_ = std::move(config); }
+    void configure(Config config) {
+        config_ = std::move(config);
+        if(!contextAllows(GetForegroundWindow())) {pending_.reset(); publish(core_.cancel());}
+    }
     void pause(bool paused) {
         paused_ = paused;
         pending_.reset();
@@ -55,7 +62,8 @@ public:
         const auto pending = *pending_; pending_.reset();
         if (paused_ || locked_ || sleeping_ || core_.session() != session ||
             !IsWindow(reinterpret_cast<HWND>(pending.target)) ||
-            GetForegroundWindow() != reinterpret_cast<HWND>(pending.target)) return;
+            GetForegroundWindow() != reinterpret_cast<HWND>(pending.target) ||
+            !contextAllows(reinterpret_cast<HWND>(pending.target))) return;
         if (pending.action->kind()!=ActionKind::Shortcut && pending.action->kind()!=ActionKind::Window && pending.action->kind()!=ActionKind::System) { Q_EMIT service_->actionRequested(*pending.action); return; }
         refreshPhysical();
         QString error;
@@ -64,6 +72,14 @@ public:
         if(!ok) Q_EMIT service_->failure(error);
     }
 private:
+    void refreshContext() {
+        foreground_=GetForegroundWindow(); executable_=win::processExecutable(foreground_); fullscreen_=win::isFullscreen(foreground_);
+    }
+    bool contextAllows(HWND window) const {
+        const auto& rules=config_.triggerRules;
+        if(!rules.pauseFullscreen && rules.excludedApplications.isEmpty()) return true;
+        return window==foreground_ && rules.allows(executable_,fullscreen_);
+    }
     void refreshPhysical() {
         for (int vk=0; vk<256; ++vk) physical_[vk] = (GetAsyncKeyState(vk) & 0x8000) != 0;
     }
@@ -148,8 +164,9 @@ private:
                         geometry = Geometry::fit(point,{double(r.left),double(r.top),double(r.right-r.left),double(r.bottom-r.top)},dx/96.0);
                         self_->screen_ = QString::fromWCharArray(info.szDevice);
                     }
+                    const HWND target=GetForegroundWindow();
                     decision = self_->core_.press(*button,mods,self_->config_,geometry,
-                                                 reinterpret_cast<quintptr>(GetForegroundWindow()));
+                                                 reinterpret_cast<quintptr>(target),self_->contextAllows(target));
                     if (decision.show) Q_EMIT self_->service_->triggered(decision.session,onset);
                 } else decision = self_->core_.release(*button,point);
             }
@@ -161,7 +178,12 @@ private:
     static void CALLBACK focusProc(HWINEVENTHOOK,DWORD,HWND,LONG,LONG,DWORD,DWORD) {
         if (!self_) return;
         self_->pending_.reset();
-        self_->publish(self_->core_.cancel());
+        self_->publish(self_->core_.cancel()); self_->refreshContext();
+    }
+    static void CALLBACK locationProc(HWINEVENTHOOK,DWORD,HWND window,LONG object,LONG child,DWORD,DWORD) {
+        if(!self_ || object!=OBJID_WINDOW || child!=CHILDID_SELF || window!=self_->foreground_) return;
+        self_->fullscreen_=win::isFullscreen(window);
+        if(!self_->contextAllows(window)) {self_->pending_.reset(); self_->publish(self_->core_.cancel());}
     }
     static LRESULT CALLBACK windowProc(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
         if (self_) {
@@ -178,7 +200,7 @@ private:
                 self_->publish(self_->core_.cancel());
                 self_->publish(self_->core_.setPaused(self_->paused_ || self_->locked_ || self_->sleeping_));
                 if (resume || message == WM_DISPLAYCHANGE) {
-                    self_->install();
+                    self_->refreshContext(); self_->install();
 
                 }
             }
@@ -189,6 +211,10 @@ private:
     InputService* service_;
     Hook keyboard_, mouse_;
     HWINEVENTHOOK focus_ = nullptr;
+    HWINEVENTHOOK location_ = nullptr;
+    HWND foreground_ = nullptr;
+    QString executable_;
+    bool fullscreen_ = false;
     HWND window_ = nullptr;
     Interaction core_;
     Config config_;

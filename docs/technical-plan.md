@@ -11,6 +11,7 @@
 - [共享屏幕框选](../src/tools/region_capture.h)、[OCR 会话](../src/tools/ocr_session.h)、[本地 OCR](../src/tools/local_ocr.h)、[窗口与系统操作](../src/platform/desktop_actions.h)
 - [配置存储](../src/config/config_store.h)、[共享图片导入与解码](../src/core/image_asset.h)
 - [平台接口](../src/platform/input_service.h)、[Windows 输入线程](../src/platform/windows_input.cpp)、[注入计划](../src/platform/windows_injection.cpp)
+- [按需应用发现](../src/platform/application_catalog.h)、[窗口上下文](../src/platform/window_context.h)、[应用选择器](../src/ui/application_picker.h)、[暂停规则编辑](../src/ui/trigger_rules_editor.h)
 - [轮盘](../src/ui/wheel_window.h)、[设置](../src/ui/settings_window.h)、[共享主题](../src/ui/theme.h)
 - [标注模型与撤销](../src/tools/annotation_document.h)、[独立屏幕标注](../src/tools/screen_annotation_session.h)、[贴图窗口](../src/tools/pinned_image.h)、[截图会话](../src/tools/screenshot_session.h)
 - [启动目标执行](../src/tools/launcher.h)、[动作图标](../src/ui/action_icons.h)、[图标来源](../src/ui/icons/SOURCE.md)
@@ -68,7 +69,7 @@ Windows 在带消息循环的专用线程安装钩子；macOS 使用承载事件
 
 该策略须先用真实应用验证，重点覆盖 Alt／Win／Command 的系统副作用和执行期间的物理释放。若平台不能可靠满足立即执行语义，应回到产品层明确约束，不静默改为等待所有按键松开。Windows SendInput 不会自动重置现有键盘状态，且受目标进程完整性级别限制；注入成功也不等于应用已执行动作，见 [SendInput 文档](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)。
 
-部分注入失败时仅清理自身负责的未配对按键，不盲目重试完整动作。暂停、锁屏、睡眠和权限丢失统一终止活动会话；恢复时重新核对输入状态与监听有效性，不重放旧操作。空闲时不持续轮询。
+部分注入失败时仅清理自身负责的未配对按键，不盲目重试完整动作。暂停、锁屏、睡眠和权限丢失统一终止活动会话；恢复时重新核对输入状态与监听有效性，不重放旧操作。空闲时不持续轮询。前台与窗口位置事件更新场景快照；低级鼠标钩子只读取快照，不扫描应用或读取进程路径。规则只决定新的按下是否触发，既有会话仍由状态机负责释放配对。
 
 ## 窗口与显示适配
 
@@ -132,3 +133,7 @@ Windows 随包携带所需 Qt 插件和运行库，在未安装开发工具的�
 - 普通用户启动使用桌面 Shell，参考 [Microsoft 的桌面进程启动说明](https://devblogs.microsoft.com/oldnewthing/20131118-00/?p=2643)。
 - 本地识别使用 [Windows OCR](https://learn.microsoft.com/en-us/uwp/api/windows.media.ocr.ocrengine)，异步任务在工作线程执行。
 - 隐藏终端通过 [QProcess 原生创建参数](https://doc.qt.io/qt-6/qprocess-createprocessarguments.html) 设置；CMD 原生参数与普通程序参数分别遵循对应的解析规则。
+
+## 交互参考
+
+应用选择、轮盘预览编辑及场景暂停的产品交互参考 [StarPie](https://github.com/SoftBlack42/StarPie)。平台实现使用 [QueryFullProcessImageNameW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew)、[SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook) 和 Qt 的异步任务接口；可取消的应用扫描不访问界面对象。

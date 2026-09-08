@@ -7,6 +7,8 @@
 #include <QPainterPath>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QMouseEvent>
+#include <QApplication>
 #include <Windows.h>
 namespace wheel {
 WheelWindow::WheelWindow(bool overlay, QWidget* parent) : QWidget(parent), opening_(this), overlay_(overlay) {
@@ -65,6 +67,29 @@ void WheelWindow::applyConfig(const Config& config) {
     centerImage_=QPixmap::fromImage(decodeImageAsset(config.centerImage)); cached_=true;
 }
 void WheelWindow::preview(const Config& config) { applyConfig(config); update(); }
+int WheelWindow::previewSlotAt(QPointF position) const {
+    const QPointF local((position.x()/width()-.5)*WheelRadius*2,(position.y()/height()-.5)*WheelRadius*2);
+    return Geometry{{0,0}}.hit(local,config_.shape);
+}
+void WheelWindow::mousePressEvent(QMouseEvent* event) {
+    if(overlay_ || event->button()!=Qt::LeftButton) return;
+    dragStart_=event->position();
+    dragSource_=previewSlotAt(dragStart_);
+    if(dragSource_>=0) Q_EMIT slotClicked(dragSource_);
+}
+void WheelWindow::mouseMoveEvent(QMouseEvent* event) {
+    if(overlay_ || dragSource_<0 || !(event->buttons()&Qt::LeftButton)) return;
+    if((event->position()-dragStart_).manhattanLength()>=QApplication::startDragDistance()) {
+        setCursor(Qt::ClosedHandCursor); select(0,previewSlotAt(event->position()));
+    }
+}
+void WheelWindow::mouseReleaseEvent(QMouseEvent* event) {
+    if(overlay_ || event->button()!=Qt::LeftButton) return;
+    const int source=std::exchange(dragSource_,-1); unsetCursor(); if(source>=0) select(0,source);
+    if(source<0 || (event->position()-dragStart_).manhattanLength()<QApplication::startDragDistance()) return;
+    const int target=previewSlotAt(event->position());
+    if(target>=0 && target!=source) Q_EMIT slotsSwapped(source,target);
+}
 bool WheelWindow::nativeEvent(const QByteArray& type, void* message, qintptr* result) {
     const auto* msg = static_cast<MSG*>(message);
     if (overlay_ && msg->message == WM_MOUSEACTIVATE) { *result = MA_NOACTIVATE; return true; }
@@ -81,7 +106,7 @@ void WheelWindow::paintEvent(QPaintEvent*) {
     const double scale=0.94+0.06*opacity_; p.scale(scale,scale);
     p.setPen(Qt::NoPen);
     for(int i=0;i<8;++i) {
-        const bool selected=i==selection_ && config_.slots[i].enabled();
+        const bool selected=i==selection_ && (!overlay_ || config_.slots[i].enabled());
         const auto& path=slotPath(config_.shape,i);
         p.fillPath(path,selected?colors.selected:colors.surface);
         const auto center=slotCenter(i);

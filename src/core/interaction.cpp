@@ -1,9 +1,9 @@
 #include "core/interaction.h"
 namespace wheel {
 Decision Interaction::press(MouseButton b, Modifiers mods, const Config& c,
-                            const Geometry& geometry, quintptr target) {
+                            const Geometry& geometry, quintptr target, bool permitted) {
     if (held_ == b) return {.consumed = true};
-    if (paused_ || held_ || b != c.button || mods != bit(c.modifier) || !target) return {};
+    if (!permitted || paused_ || held_ || b != c.button || mods != bit(c.modifier) || !target) return {};
     held_ = b; active_ = true; snapshot_ = c; geometry_ = geometry;
     target_ = target; selection_ = -1; ++session_;
     return {.consumed = true, .show = true, .session = session_};

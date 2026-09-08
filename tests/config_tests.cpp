@@ -11,6 +11,18 @@ using namespace wheel;
 class ConfigTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void triggerRulesRoundTripAndStrictRead() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
+        auto c=defaultConfig(); c.triggerRules.pauseFullscreen=true;
+        c.triggerRules.excludedApplications={"C:/应用/editor.exe"};
+        QVERIFY(store.commit(c)); ConfigStore reopened(store.path()); QVERIFY(reopened.load()); QCOMPARE(reopened.current(),c);
+        QFile file(store.path()); QVERIFY(file.open(QIODevice::ReadOnly));
+        auto json=QJsonDocument::fromJson(file.readAll()).object(); file.close();
+        json["triggerRules"]=QJsonObject{{"pauseFullscreen","yes"},{"excludedApplications",QJsonArray{123}}};
+        QVERIFY(file.open(QIODevice::WriteOnly)); file.write(QJsonDocument(json).toJson()); file.close();
+        QVERIFY(!reopened.load()); QCOMPARE(reopened.current(),c);
+        c.triggerRules.excludedApplications={"relative.exe"}; QVERIFY(!store.commit(c));
+    }
     void readsExistingConfigAndWritesCurrentFormat() {
         QTemporaryDir dir;QFile file(dir.filePath("config.json"));QJsonArray slots;
         slots.append(QJsonObject{{"name","Copy"},{"kind",0},{"key",int(Qt::Key_C)},{"modifiers",1},{"target",""}});
