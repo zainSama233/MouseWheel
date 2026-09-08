@@ -10,6 +10,13 @@ using namespace wheel;
 class MacTests:public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void nativeOverlay() {
+        QWidget overlay;Geometry geometry;geometry.center={200,200};geometry.radius=80;
+        platform::placeOverlay(&overlay,geometry,true);
+        QVERIFY(overlay.isVisible());QCOMPARE(overlay.size(),QSize(160,160));
+        platform::setOverlayInput(&overlay,false);
+        platform::setOverlayInput(&overlay,true);overlay.hide();
+    }
     void appBundleProfile() {
         auto c=defaultConfig();Profile p;p.id="finder";p.name="Finder";p.applications={"/System/Library/CoreServices/Finder.app"};c.profiles.append(p);
         QVERIFY2(validate(c).isEmpty(),qPrintable(validate(c)));QCOMPARE(c.resolved(p.applications[0]).slots,p.wheel.slots);

@@ -8,13 +8,13 @@ namespace wheel::platform {
 void initializeDisplay(){}
 bool overlayEvent(void*,qintptr*){return false;}
 void setOverlayInput(QWidget* widget,bool transparent) {
-    NSWindow* window=[reinterpret_cast<NSView*>(widget->winId()) window];
+    NSWindow* window=[(__bridge NSView*)reinterpret_cast<void*>(widget->winId()) window];
     window.ignoresMouseEvents=transparent;window.hidesOnDeactivate=NO;
     window.level=NSStatusWindowLevel;window.collectionBehavior=NSWindowCollectionBehaviorCanJoinAllSpaces|NSWindowCollectionBehaviorFullScreenAuxiliary;
 }
 void placeOverlay(QWidget* widget,const Geometry& geometry,bool visible) {
     widget->setGeometry(qRound(geometry.center.x()-geometry.radius),qRound(geometry.center.y()-geometry.radius),qRound(geometry.radius*2),qRound(geometry.radius*2));
-    if(visible){widget->show();setOverlayInput(widget,true);NSWindow* window=[reinterpret_cast<NSView*>(widget->winId()) window];[window orderFrontRegardless];}
+    if(visible){widget->show();setOverlayInput(widget,true);NSWindow* window=[(__bridge NSView*)reinterpret_cast<void*>(widget->winId()) window];[window orderFrontRegardless];}
 }
 QImage captureBackdrop(QWidget* widget,const Geometry& geometry) {
     if(!CGPreflightScreenCaptureAccess())return {};
