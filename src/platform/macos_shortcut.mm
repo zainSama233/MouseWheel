@@ -15,7 +15,7 @@ struct ShortcutCapture::Impl {
         if(type==kCGEventTapDisabledByTimeout || type==kCGEventTapDisabledByUserInput){CGEventTapEnable(self.tap,true);return event;}
         if(CGEventGetIntegerValueField(event,kCGEventSourceUserData)==mac::InjectionTag)return event;
         const auto key=CGEventGetIntegerValueField(event,kCGKeyboardEventKeycode);if(key<0 || key>=128)return event;
-        const bool down=type==kCGEventKeyDown || (type==kCGEventFlagsChanged && CGEventSourceKeyState(kCGEventSourceStateHIDSystem,CGKeyCode(key)));
+        const bool down=type==kCGEventKeyDown || (type==kCGEventFlagsChanged && CGEventSourceKeyState(kCGEventSourceStateHIDSystemState,CGKeyCode(key)));
         if(self.prior[key]){if(!down)self.prior[key]=false;return event;}
         if(self.cancelled && !self.held[key])return event;
         self.held[key]=down;
@@ -32,7 +32,7 @@ ShortcutCapture::~ShortcutCapture(){if(Impl::active==this)Impl::active=nullptr;}
 ShortcutCapture* ShortcutCapture::active(){return Impl::active;}
 bool ShortcutCapture::start() {
     if(Impl::active){deleteLater();return false;}
-    for(int i=0;i<128;++i)impl_->prior[i]=CGEventSourceKeyState(kCGEventSourceStateHIDSystem,i);
+    for(int i=0;i<128;++i)impl_->prior[i]=CGEventSourceKeyState(kCGEventSourceStateHIDSystemState,i);
     impl_->tap=CGEventTapCreate(kCGSessionEventTap,kCGHeadInsertEventTap,kCGEventTapOptionDefault,CGEventMaskBit(kCGEventKeyDown)|CGEventMaskBit(kCGEventKeyUp)|CGEventMaskBit(kCGEventFlagsChanged),Impl::callback,this);
     if(!impl_->tap){deleteLater();return false;}impl_->source=CFMachPortCreateRunLoopSource(nullptr,impl_->tap,0);
     CFRunLoopAddSource(CFRunLoopGetMain(),impl_->source,kCFRunLoopCommonModes);CGEventTapEnable(impl_->tap,true);Impl::active=this;return true;

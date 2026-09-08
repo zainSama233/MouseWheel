@@ -38,12 +38,12 @@ bool execute(const Action& action,int pid,QString& error) {
     if(window->operation==WindowOperation::Minimize)return AXUIElementSetAttributeValue(target.window,kAXMinimizedAttribute,kCFBooleanTrue)==kAXErrorSuccess;
     CGPoint position{};CGSize size{};CFTypeRef point=nullptr,extent=nullptr;
     if(AXUIElementCopyAttributeValue(target.window,kAXPositionAttribute,&point)!=kAXErrorSuccess || AXUIElementCopyAttributeValue(target.window,kAXSizeAttribute,&extent)!=kAXErrorSuccess){if(point)CFRelease(point);if(extent)CFRelease(extent);error=QStringLiteral("无法读取窗口位置。");return false;}
-    AXValueGetValue(static_cast<AXValueRef>(point),kAXValueCGPointType,&position);AXValueGetValue(static_cast<AXValueRef>(extent),kAXValueCGSizeType,&size);CFRelease(point);CFRelease(extent);
+    AXValueGetValue(static_cast<AXValueRef>(point),kAXValueTypeCGPoint,&position);AXValueGetValue(static_cast<AXValueRef>(extent),kAXValueTypeCGSize,&size);CFRelease(point);CFRelease(extent);
     const auto screens=QGuiApplication::screens();int index=0;for(int i=0;i<screens.size();++i)if(screens[i]->geometry().contains(QPoint(position.x+size.width/2,position.y+size.height/2))){index=i;break;}
     if(window->operation==WindowOperation::NextMonitor)index=(index+1)%screens.size();const auto bounds=screens[index]->availableGeometry();
     if(window->operation==WindowOperation::NextMonitor){position={double(bounds.x()),double(bounds.y())};size.width=qMin(size.width,double(bounds.width()));size.height=qMin(size.height,double(bounds.height()));}
     else {position={double(bounds.x()),double(bounds.y())};size={double(bounds.width()),double(bounds.height())};if(window->operation==WindowOperation::TileLeft || window->operation==WindowOperation::TileRight){size.width/=2;if(window->operation==WindowOperation::TileRight)position.x+=size.width;}}
-    auto newPoint=AXValueCreate(kAXValueCGPointType,&position);auto newSize=AXValueCreate(kAXValueCGSizeType,&size);
+    auto newPoint=AXValueCreate(kAXValueTypeCGPoint,&position);auto newSize=AXValueCreate(kAXValueTypeCGSize,&size);
     const auto moved=AXUIElementSetAttributeValue(target.window,kAXPositionAttribute,newPoint);const auto resized=AXUIElementSetAttributeValue(target.window,kAXSizeAttribute,newSize);CFRelease(newPoint);CFRelease(newSize);
     if(moved==kAXErrorSuccess && resized==kAXErrorSuccess)return true;error=QStringLiteral("目标应用不允许调整窗口。");return false;
 }
