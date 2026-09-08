@@ -12,8 +12,8 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QTimer>
-#include <Windows.h>
-#include <dwmapi.h>
+#include "platform/native_ui.h"
+
 namespace wheel {
 class RegionPicker final : public QDialog {
 public:
@@ -84,7 +84,7 @@ void RegionCapture::clearPickers() {
 }
 bool RegionCapture::start(Theme theme,QString& error,Mode mode) {
     error.clear(); if(active()) return false;
-    if(FAILED(DwmFlush())) { error=QCoreApplication::translate("MouseWheel","无法同步桌面画面，请重试。"); return false; }
+    if(!platform::prepareCapture(error))return false;
     const auto generation=++generation_;
     for(auto* screen:QGuiApplication::screens()) {
         const auto image=screen->grabWindow(0).toImage();

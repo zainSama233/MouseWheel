@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 $stage=Join-Path $root 'build/portable-payload'
 New-Item -ItemType Directory -Force $stage | Out-Null
 $package=Join-Path $root 'dist/MouseWheel'
-$files=Get-ChildItem $package -File | Where-Object { $_.Extension -eq '.dll' -or $_.Name -eq 'MouseWheel.exe' }
+$files=Get-ChildItem $package -File | Where-Object { $_.Extension -eq '.dll' -or $_.Name -in @('MouseWheel.exe','LICENSE','README.md') }
 foreach($folder in @('platforms','imageformats','iconengines','styles','tls','networkinformation','licenses')) {
     if(Test-Path "$package/$folder"){ $files+=Get-ChildItem "$package/$folder" -File -Recurse }
 }

@@ -11,6 +11,7 @@
 #include "core/image_asset.h"
 #include <QLineEdit>
 #include <QComboBox>
+#include <QStandardItemModel>
 #include <QCheckBox>
 #include <QPlainTextEdit>
 #include <QSpinBox>
@@ -87,11 +88,11 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     folder_=combo(forms[5],QCoreApplication::translate("MouseWheel","目录"),{QCoreApplication::translate("MouseWheel","自定义路径"),QCoreApplication::translate("MouseWheel","桌面"),QCoreApplication::translate("MouseWheel","下载"),QCoreApplication::translate("MouseWheel","文档"),QCoreApplication::translate("MouseWheel","图片"),QCoreApplication::translate("MouseWheel","用户目录"),QCoreApplication::translate("MouseWheel","此电脑"),QCoreApplication::translate("MouseWheel","回收站")});
     folderPath_=line(forms[5],QCoreApplication::translate("MouseWheel","路径")); browse(forms[5],folderPath_,true);
     connect(folder_,&QComboBox::currentIndexChanged,this,[this](int value){folderPath_->setEnabled(value==0);});
-    shell_=combo(forms[6],QCoreApplication::translate("MouseWheel","终端"),{"CMD","PowerShell","WSL"});
+    shell_=combo(forms[6],QCoreApplication::translate("MouseWheel","终端"),{"CMD","PowerShell","WSL","Zsh"});
     script_=new QPlainTextEdit; script_->setMaximumHeight(110); forms[6]->addRow(QCoreApplication::translate("MouseWheel","命令"),script_); connect(script_,&QPlainTextEdit::textChanged,this,changed);
     commandDirectory_=line(forms[6],QCoreApplication::translate("MouseWheel","工作目录")); browse(forms[6],commandDirectory_,true);
     hidden_=new QCheckBox(QCoreApplication::translate("MouseWheel","隐藏终端")); forms[6]->addRow(hidden_); connect(hidden_,&QCheckBox::toggled,this,changed);
-    provider_=combo(forms[7],QCoreApplication::translate("MouseWheel","识别方式"),{QCoreApplication::translate("MouseWheel","本地 Windows OCR"),QCoreApplication::translate("MouseWheel","AI · 兼容 Chat Completions"),QCoreApplication::translate("MouseWheel","自定义 HTTP")});
+    provider_=combo(forms[7],QCoreApplication::translate("MouseWheel","识别方式"),{QCoreApplication::translate("MouseWheel","本地离线 OCR"),QCoreApplication::translate("MouseWheel","AI · 兼容 Chat Completions"),QCoreApplication::translate("MouseWheel","自定义 HTTP")});
     endpoint_=line(forms[7],QCoreApplication::translate("MouseWheel","完整接口地址")); apiKey_=line(forms[7],QStringLiteral("API Key")); apiKey_->setEchoMode(QLineEdit::Password);
     model_=line(forms[7],QCoreApplication::translate("MouseWheel","模型")); resultPath_=line(forms[7],QCoreApplication::translate("MouseWheel","结果字段"));
     connect(provider_,&QComboBox::currentIndexChanged,this,[this](int value){endpoint_->setEnabled(value!=0);apiKey_->setEnabled(value!=0);model_->setEnabled(value==1);resultPath_->setEnabled(value==2);});
@@ -149,6 +150,14 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
         if(name_->text().isEmpty()) name_->setText(actionKindName(ActionKind(value)));
         if(value==int(ActionKind::Group)) label_->setChecked(true);Q_EMIT edited();
     });
+#ifdef Q_OS_MACOS
+    normal_->hide();
+    for(int index:{int(Shell::Cmd),int(Shell::Wsl)})static_cast<QStandardItemModel*>(shell_->model())->item(index)->setEnabled(false);
+    for(int index:{int(WindowOperation::Topmost),int(WindowOperation::Opacity)})static_cast<QStandardItemModel*>(window_->model())->item(index)->setEnabled(false);
+    for(int index:{int(SystemOperation::NewDesktop),int(SystemOperation::CloseDesktop)})static_cast<QStandardItemModel*>(system_->model())->item(index)->setEnabled(false);
+#else
+    static_cast<QStandardItemModel*>(shell_->model())->item(int(Shell::Zsh))->setEnabled(false);
+#endif
     root->addStretch(); setSlot({});
 }
 void SlotEditor::setAdvancedSettingsVisible(bool visible) {
@@ -178,10 +187,20 @@ void SlotEditor::setSlot(const Slot& s) {
     shortcut_->setShortcut({}); appPath_->clear(); arguments_->clear(); directory_->clear(); normal_->setChecked(true);
     url_->clear(); browser_->setCurrentIndex(0); browserPath_->clear(); browserPath_->setEnabled(false);
     folder_->setCurrentIndex(1); folderPath_->clear(); folderPath_->setEnabled(false);
-    shell_->setCurrentIndex(1); script_->clear(); commandDirectory_->clear(); hidden_->setChecked(true);
+#ifdef Q_OS_MACOS
+    shell_->setCurrentIndex(int(Shell::Zsh));
+#else
+    shell_->setCurrentIndex(int(Shell::PowerShell));
+#endif
+    script_->clear(); commandDirectory_->clear(); hidden_->setChecked(true);
     provider_->setCurrentIndex(0); endpoint_->clear(); apiKey_->clear(); model_->clear(); resultPath_->setText("text");
     endpoint_->setEnabled(false);apiKey_->setEnabled(false);model_->setEnabled(false);resultPath_->setEnabled(false);
-    window_->setCurrentIndex(int(WindowOperation::Topmost)); opacity_->setValue(85); opacity_->setEnabled(false); system_->setCurrentIndex(int(SystemOperation::Mute));
+#ifdef Q_OS_MACOS
+    window_->setCurrentIndex(int(WindowOperation::TileLeft));
+#else
+    window_->setCurrentIndex(int(WindowOperation::Topmost));
+#endif
+    opacity_->setValue(85); opacity_->setEnabled(false); system_->setCurrentIndex(int(SystemOperation::Mute));
     std::visit([&](const auto& a){using T=std::decay_t<decltype(a)>;
         if constexpr(std::is_same_v<T,Shortcut>) shortcut_->setShortcut(a);
         else if constexpr(std::is_same_v<T,ApplicationAction>) {appPath_->setText(a.path); arguments_->setText(a.arguments);directory_->setText(a.directory);normal_->setChecked(a.normalUser);}

@@ -7,9 +7,9 @@
 #include <QLockFile>
 #include <QMessageBox>
 #include <QTimer>
-#include <Windows.h>
+#include "platform/native_ui.h"
 int main(int argc, char** argv) {
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    wheel::platform::initializeDisplay();
     QApplication application(argc,argv);
     application.setApplicationName("MouseWheel");
     application.setApplicationVersion(QStringLiteral(MOUSEWHEEL_VERSION));
@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     parser.addOption({"smoke-test",QCoreApplication::translate("MouseWheel","启动设置并在两秒后退出")});
     parser.process(application);
     const auto path = parser.isSet("config") ? QFileInfo(parser.value("config")).absoluteFilePath() :
-                      QCoreApplication::applicationDirPath() + "/config.json";
+                      wheel::platform::defaultConfigPath();
     QLockFile lock(path + ".lock");
     lock.setStaleLockTime(0);
     if (!lock.tryLock()) {

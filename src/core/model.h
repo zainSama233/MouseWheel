@@ -53,7 +53,7 @@ struct FolderAction {
     FolderLocation location=FolderLocation::Desktop; QString path;
     bool operator==(const FolderAction&) const = default;
 };
-enum class Shell { Cmd, PowerShell, Wsl };
+enum class Shell { Cmd, PowerShell, Wsl, Zsh };
 struct CommandAction {
     Shell shell=Shell::PowerShell; QString script, directory; bool hidden=true;
     bool operator==(const CommandAction&) const = default;
@@ -155,6 +155,7 @@ struct Config:WheelConfig {
     bool operator==(const Config&) const = default;
 };
 QString executableIdentity(const QString& path);
+bool applicationPath(const QString& path);
 void visitSlots(Config& config,const std::function<void(Slot&)>& visitor);
 QString validate(const SlotStyle& style);
 QString validate(const WheelConfig& config);

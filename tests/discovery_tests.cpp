@@ -26,7 +26,7 @@ private Q_SLOTS:
         QVERIFY(SUCCEEDED(link->SetPath(reinterpret_cast<LPCWSTR>(target.utf16()))));
         QVERIFY(SUCCEEDED(link->SetArguments(L"--example \"参数 空格\"")));
         QVERIFY(SUCCEEDED(link.As(&file))); QVERIFY(SUCCEEDED(file->Save(reinterpret_cast<LPCWSTR>(path.utf16()),TRUE)));
-        const auto apps=win::discoverApplications({dir.path()});
+        const auto apps=platform::discoverApplications({dir.path()});
         const auto it=std::find_if(apps.begin(),apps.end(),[&](const auto& app){return app.path==path;});
         QVERIFY(it!=apps.end()); QCOMPARE(it->name,QStringLiteral("测试 应用"));
         QCOMPARE(it->executable.compare(QDir::fromNativeSeparators(target),Qt::CaseInsensitive),0);
@@ -40,14 +40,14 @@ private Q_SLOTS:
         QVERIFY(SUCCEEDED(CoCreateInstance(CLSID_ShellLink,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&link))));
         QVERIFY(SUCCEEDED(link->SetPath(L"C:\\Windows\\System32\\notepad.exe")));
         QVERIFY(SUCCEEDED(link.As(&file))); QVERIFY(SUCCEEDED(file->Save(reinterpret_cast<LPCWSTR>(path.utf16()),TRUE)));
-        const auto direct=win::programIcon("C:/Windows/System32/notepad.exe");
-        QVERIFY(!direct.isNull()); QCOMPARE(win::programIcon(path),direct);
+        const auto direct=platform::programIcon("C:/Windows/System32/notepad.exe");
+        QVERIFY(!direct.isNull()); QCOMPARE(platform::programIcon(path),direct);
     }
     void discoversRunningNotepad() {
         QProcess notepad; notepad.start("notepad.exe"); QVERIFY(notepad.waitForStarted());
         const auto cleanup=qScopeGuard([&]{notepad.terminate(); notepad.waitForFinished(3000);});
         QTRY_VERIFY_WITH_TIMEOUT(([&]{
-            const auto windows=win::runningApplications();
+            const auto windows=platform::runningApplications();
             return std::any_of(windows.begin(),windows.end(),[](const auto& entry){return entry.executable.endsWith("/notepad.exe",Qt::CaseInsensitive) && !entry.name.isEmpty() && entry.path==entry.executable;});
         })(),5000);
     }
@@ -58,7 +58,7 @@ private Q_SLOTS:
         QVERIFY(!win::isFullscreen(hwnd)); window.showFullScreen();
         QTRY_VERIFY(win::isFullscreen(hwnd)); window.showNormal(); QTRY_VERIFY(!win::isFullscreen(hwnd));
         QVERIFY(win::processExecutable(nullptr).isEmpty()); QVERIFY(!win::isFullscreen(nullptr));
-        const auto windows=win::runningApplications();
+        const auto windows=platform::runningApplications();
         QVERIFY(std::none_of(windows.begin(),windows.end(),[](const auto& app){return app.executable.compare(QCoreApplication::applicationFilePath(),Qt::CaseInsensitive)==0;}));
     }
 };

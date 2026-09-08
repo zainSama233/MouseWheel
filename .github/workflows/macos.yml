@@ -1,0 +1,31 @@
+name: macOS build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned Qt
+        run: |
+          python -m pip install "aqtinstall==$(python -c 'import json;print(json.load(open("toolchain.json"))["aqtinstall"])')"
+          QT_VERSION=$(python -c 'import json;print(json.load(open("toolchain.json"))["qt"])')
+          python -m aqt install-qt mac desktop "$QT_VERSION" clang_64 --archives qtbase qttools qtsvg -O "$RUNNER_TEMP/Qt"
+          echo "QT_ROOT=$RUNNER_TEMP/Qt/$QT_VERSION/macos" >> "$GITHUB_ENV"
+      - name: Build, test and package
+        run: bash scripts/build-macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MouseWheel-macos-universal
+          path: dist/MouseWheel-macos-universal.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macOS-test-logs
+          path: build/macos/Testing/Temporary/

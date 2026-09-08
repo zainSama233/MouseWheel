@@ -17,7 +17,7 @@
 #include <QScreen>
 #include <QMouseEvent>
 #include <QApplication>
-#include <Windows.h>
+#include "platform/native_ui.h"
 namespace wheel {
 namespace {
 QPixmap blurredBackdrop(QPixmap source) {
@@ -39,9 +39,7 @@ WheelWindow::WheelWindow(bool overlay, QWidget* parent) : QWidget(parent), openi
         setAttribute(Qt::WA_TranslucentBackground);
         setAttribute(Qt::WA_ShowWithoutActivating);
         setFocusPolicy(Qt::NoFocus);
-        const HWND hwnd = reinterpret_cast<HWND>(winId());
-        SetWindowLongPtrW(hwnd,GWL_EXSTYLE,GetWindowLongPtrW(hwnd,GWL_EXSTYLE) |
-                         WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT);
+        platform::setOverlayInput(this,true);
     }
     resize(int(WheelRadius*2),int(WheelRadius*2)); applyConfig(config_);
 }
@@ -53,27 +51,11 @@ void WheelWindow::present(quint64 session, Config config, Geometry geometry, con
     for (auto* screen : QGuiApplication::screens()) {
         if (screen->name() != name) continue;
         setScreen(screen);
-        resize(qRound(geometry.radius*2/screen->devicePixelRatio()),
-               qRound(geometry.radius*2/screen->devicePixelRatio()));
         break;
     }
-    const HWND hwnd = reinterpret_cast<HWND>(winId());
-    SetWindowPos(hwnd,HWND_TOPMOST,qRound(geometry.center.x()-geometry.radius),
-                 qRound(geometry.center.y()-geometry.radius),qRound(geometry.radius*2),
-                 qRound(geometry.radius*2),SWP_NOACTIVATE);
-    if(config_.frosted) {
-        hide();POINT point{LONG(geometry.center.x()),LONG(geometry.center.y())};MONITORINFO info{};info.cbSize=sizeof(info);
-        if(GetMonitorInfoW(MonitorFromPoint(point,MONITOR_DEFAULTTONEAREST),&info)) {
-            const auto capture=screen()->grabWindow(0).toImage();
-            const QRect area(qRound(geometry.center.x()-geometry.radius-info.rcMonitor.left),qRound(geometry.center.y()-geometry.radius-info.rcMonitor.top),qRound(geometry.radius*2),qRound(geometry.radius*2));
-            auto image=capture.copy(area);image.setDevicePixelRatio(1);
-            backdrop_=blurredBackdrop(QPixmap::fromImage(image));
-        }
-    }
-    show();
-    SetWindowPos(hwnd,HWND_TOPMOST,qRound(geometry.center.x()-geometry.radius),
-                 qRound(geometry.center.y()-geometry.radius),qRound(geometry.radius*2),
-                 qRound(geometry.radius*2),SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    platform::placeOverlay(this,geometry,false);
+    if(config_.frosted){hide();backdrop_=blurredBackdrop(QPixmap::fromImage(platform::captureBackdrop(this,geometry)));}
+    platform::placeOverlay(this,geometry,true);
     opening_.start(); update();
 }
 void WheelWindow::changeLevel(quint64 session,int group) {
@@ -164,9 +146,7 @@ void WheelWindow::mouseReleaseEvent(QMouseEvent* event) {
     else Q_EMIT positionsSwapped(dragGroup_,source,group_,target);
 }
 bool WheelWindow::nativeEvent(const QByteArray& type, void* message, qintptr* result) {
-    const auto* msg = static_cast<MSG*>(message);
-    if (overlay_ && msg->message == WM_MOUSEACTIVATE) { *result = MA_NOACTIVATE; return true; }
-    if (overlay_ && msg->message == WM_NCHITTEST) { *result = HTTRANSPARENT; return true; }
+    if(overlay_ && platform::overlayEvent(message,result))return true;
     return QWidget::nativeEvent(type,message,result);
 }
 void WheelWindow::paintEvent(QPaintEvent*) {

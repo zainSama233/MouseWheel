@@ -16,6 +16,7 @@ if ($Package) {
     $crt = Get-ChildItem "$vs/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT" -Directory | Sort-Object FullName -Descending | Select-Object -First 1
     if (!$crt) { throw "VC runtime directory not found" }
     Copy-Item "$($crt.FullName)/*.dll" "$root/dist/MouseWheel/"
+    Copy-Item "$root/LICENSE" "$root/dist/MouseWheel/LICENSE"
     Copy-Item "$root/README.md" "$root/dist/MouseWheel/README.md"
     Copy-Item "$root/licenses" "$root/dist/MouseWheel/" -Recurse -Force
     foreach ($module in @("qtbase","qtsvg")) { Copy-Item "$qt/sbom/$module-$($versions.qt).spdx.json" "$root/dist/MouseWheel/licenses/" }

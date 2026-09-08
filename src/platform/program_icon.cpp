@@ -5,7 +5,7 @@
 #include <shlobj.h>
 #include <shellapi.h>
 #include <wrl/client.h>
-namespace wheel::win {
+namespace wheel::platform {
 ShortcutInfo readShortcut(const QString& path) {
     const HRESULT hr=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     const auto cleanup=qScopeGuard([&]{if(SUCCEEDED(hr)) CoUninitialize();});

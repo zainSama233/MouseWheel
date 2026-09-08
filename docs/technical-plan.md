@@ -37,7 +37,7 @@
 
 Qt 提供界面与通用基础设施，原生接口处理系统输入和窗口特性。首版采用单进程，不引入 WebView、脚本运行时、数据库、后台服务或插件系统。
 
-依赖版本由 [toolchain.json](../toolchain.json) 统一管理，构建入口见 [CMakeLists.txt](../CMakeLists.txt)。Windows 目标为 10 1809+／11 x64，当前实测基线见 [验证记录](validation.md)。Qt 平台约束参考 [Qt 6.8 Windows 支持](https://doc.qt.io/qt-6.8/windows.html)。macOS 的平台设计保留在本文，原生实现与发布验收尚未完成。
+依赖版本由 [toolchain.json](../toolchain.json) 统一管理，构建入口见 [CMakeLists.txt](../CMakeLists.txt)。Windows 目标为 10 1809+／11 x64，当前实测基线见 [验证记录](validation.md)。Qt 平台约束参考 [Qt 6.8 Windows 支持](https://doc.qt.io/qt-6.8/windows.html)。macOS 原生实现与打包入口见 [输入](../src/platform/macos_input.mm)、[窗口](../src/platform/macos_ui.mm)、[应用发现](../src/platform/macos_catalog.mm)、[动作](../src/platform/macos_actions.mm)、[本地 OCR](../src/tools/macos_ocr.mm)、[构建](../scripts/build-macos.sh)。实际验收状态见验证记录。
 
 ## 模块边界
 

@@ -47,7 +47,22 @@ bool supportedKey(int key) {
            key == Qt::Key_PageDown || (key >= Qt::Key_Left && key <= Qt::Key_Down) ||
            key == Qt::Key_Escape || key == Qt::Key_Pause || key == Qt::Key_Cancel;
 }
-QString executableIdentity(const QString& path){return QDir::cleanPath(QDir::fromNativeSeparators(path)).toCaseFolded();}
+QString executableIdentity(const QString& path){
+    const auto normalized=QDir::cleanPath(QDir::fromNativeSeparators(path));
+#ifdef Q_OS_WIN
+    return normalized.toCaseFolded();
+#else
+    return normalized;
+#endif
+}
+bool applicationPath(const QString& path) {
+    if(!QDir::isAbsolutePath(path))return false;
+#ifdef Q_OS_MACOS
+    return path.endsWith(".app") || QFileInfo(path).isExecutable();
+#else
+    return path.endsWith(".exe",Qt::CaseInsensitive);
+#endif
+}
 bool TriggerRules::allows(const QString& executable,bool fullscreen) const {
     if(pauseFullscreen && fullscreen) return false;
     const auto path=executableIdentity(executable);
@@ -58,7 +73,7 @@ bool TriggerRules::allows(const QString& executable,bool fullscreen) const {
 QString validate(const Config& c) {
     if(c.triggerRules.excludedApplications.size()>256) return QCoreApplication::translate("MouseWheel","暂停应用最多为 256 个。");
     for(const auto& path:c.triggerRules.excludedApplications)
-        if(path.isEmpty() || path.size()>32767 || path.contains(QChar::Null) || !QDir::isAbsolutePath(path) || !path.endsWith(".exe",Qt::CaseInsensitive))
+        if(path.isEmpty() || path.size()>32767 || path.contains(QChar::Null) || !applicationPath(path))
             return QCoreApplication::translate("MouseWheel","请选择暂停轮盘的应用程序（完整 EXE 路径）。");
     if (c.modifier != Modifier::None && c.modifier != Modifier::Control && c.modifier != Modifier::Alt &&
         c.modifier != Modifier::Shift && c.modifier != Modifier::Meta)
@@ -77,7 +92,7 @@ QString validate(const Config& c) {
         const auto error=validate(profile.wheel);if(!error.isEmpty()) return error;
         for(const auto& path:profile.applications) {
             const auto normalized=executableIdentity(path);
-            if(!QDir::isAbsolutePath(path) || !path.endsWith(".exe",Qt::CaseInsensitive) || applications.contains(normalized)) return QCoreApplication::translate("MouseWheel","应用路径无效或重复绑定。");
+            if(!applicationPath(path) || applications.contains(normalized)) return QCoreApplication::translate("MouseWheel","应用路径无效或重复绑定。");
             applications.insert(normalized);
         }
     }
@@ -242,7 +257,7 @@ QString validate(const Action& action) {
         } else if constexpr(std::is_same_v<T,FolderAction>) {
             if(a.location<FolderLocation::Path || a.location>FolderLocation::RecycleBin || (a.location==FolderLocation::Path && !QFileInfo(a.path).isAbsolute())) return QCoreApplication::translate("MouseWheel","请选择有效目录。");
         } else if constexpr(std::is_same_v<T,CommandAction>) {
-            if(a.shell<Shell::Cmd || a.shell>Shell::Wsl || a.script.trimmed().isEmpty() || a.script.size()>32768 || (!a.directory.isEmpty() && !QFileInfo(a.directory).isAbsolute())) return QCoreApplication::translate("MouseWheel","请输入命令及有效工作目录。");
+            if(a.shell<Shell::Cmd || a.shell>Shell::Zsh || a.script.trimmed().isEmpty() || a.script.size()>32768 || (!a.directory.isEmpty() && !QFileInfo(a.directory).isAbsolute())) return QCoreApplication::translate("MouseWheel","请输入命令及有效工作目录。");
         } else if constexpr(std::is_same_v<T,OcrAction>) {
             if(a.provider<OcrProvider::Local || a.provider>OcrProvider::Http || (a.provider!=OcrProvider::Local && !validUrl(a.endpoint)) || (a.provider==OcrProvider::Ai && a.model.trimmed().isEmpty()) || (a.provider==OcrProvider::Http && a.resultPath.trimmed().isEmpty())) return QCoreApplication::translate("MouseWheel","请填写识别服务地址及模型／结果字段。");
         } else if constexpr(std::is_same_v<T,WindowAction>) {

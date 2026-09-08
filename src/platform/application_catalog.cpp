@@ -8,7 +8,7 @@
 #include <Windows.h>
 #include <shlobj.h>
 #include <dwmapi.h>
-namespace wheel::win {
+namespace wheel::platform {
 QStringList applicationShortcutRoots() {
     QStringList roots;
     for(const auto* id:{&FOLDERID_Programs,&FOLDERID_CommonPrograms,&FOLDERID_Desktop,&FOLDERID_PublicDesktop}) {
@@ -58,7 +58,7 @@ QList<ApplicationEntry> runningApplications() {
         DWORD cloaked=0; DwmGetWindowAttribute(window,DWMWA_CLOAKED,&cloaked,sizeof(cloaked));
         if(cloaked) return TRUE;
         wchar_t title[1024]{}; if(!GetWindowTextW(window,title,1024)) return TRUE;
-        const auto executable=processExecutable(window); if(executable.isEmpty()) return TRUE;
+        const auto executable=win::processExecutable(window); if(executable.isEmpty()) return TRUE;
         auto* entries=reinterpret_cast<QList<ApplicationEntry>*>(data);
         entries->append({QString::fromWCharArray(title),executable,executable}); return TRUE;
     },reinterpret_cast<LPARAM>(&result));

@@ -10,7 +10,7 @@ struct ApplicationEntry {
     QString executable;
     bool operator==(const ApplicationEntry&) const = default;
 };
-namespace win {
+namespace platform {
 QStringList applicationShortcutRoots();
 QList<ApplicationEntry> discoverApplications(const QStringList& shortcutRoots,const std::atomic_bool* cancelled=nullptr);
 QList<ApplicationEntry> runningApplications();

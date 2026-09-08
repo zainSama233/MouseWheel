@@ -56,3 +56,9 @@ Release 构建通过。便携启动验证移除开发工具 PATH，仅使用随�
 - 高权限目标、提升权限后通过普通用户启动、系统静默移除钩子、系统层注入失败、物理 Pause／Break 与不同键盘布局。
 - WSL 实际命令执行（当前机器没有可运行的发行版）、外部模型服务、各浏览器实际加载、全部系统控制动作与多屏窗口迁移。
 - macOS 原生后端、真实 Mac 权限与焦点验证、独立应用打包及发布验收。
+
+平台接口重构后，Windows 的 actions、discovery、desktop、screenshot、config、workspace、iteration、ui、app 通过；screen_annotation 首次出现两项桌面输入失败，隔离复测全部通过，尚未稳定复现。
+
+## macOS 适配
+
+原生实现与双架构打包入口见 [技术方案](technical-plan.md)。macOS 构建与专项测试由 [工作流](../.github/workflows/macos.yml) 执行，结果尚待确认；本机没有 Mac，尚未验证真实鼠标触发、辅助功能授权、屏幕录制、多屏及全屏应用。macOS 包为实验性产物，未完成 Developer ID 签名与公证。

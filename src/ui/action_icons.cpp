@@ -31,7 +31,7 @@ QIcon actionIcon(const Slot& slot,const QColor& color,const QString& assetDirect
         const auto key="program:"+file.absoluteFilePath()+":"+QString::number(file.lastModified().toMSecsSinceEpoch());
         QPixmap image;
         if(!QPixmapCache::find(key,&image)) {
-            image=QPixmap::fromImage(win::programIcon(slot.icon.value));
+            image=QPixmap::fromImage(platform::programIcon(slot.icon.value));
             if(!image.isNull()) QPixmapCache::insert(key,image);
         }
         const QIcon icon(image);

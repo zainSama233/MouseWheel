@@ -9,7 +9,7 @@
 #include <QMouseEvent>
 #include <QInputDialog>
 #include <QSignalBlocker>
-#include <Windows.h>
+#include "platform/native_ui.h"
 #include <utility>
 namespace wheel {
 class ScreenOverlay final : public QWidget {
@@ -26,12 +26,7 @@ public:
     }
     void setDrawing(bool drawing) {
         pending_.reset(); drawing_=drawing;
-        const auto hwnd=reinterpret_cast<HWND>(winId());
-        auto flags=GetWindowLongPtr(hwnd,GWL_EXSTYLE);
-        flags=drawing ? flags&~WS_EX_TRANSPARENT : flags|WS_EX_TRANSPARENT;
-        flags|=WS_EX_NOACTIVATE;
-        SetWindowLongPtr(hwnd,GWL_EXSTYLE,flags);
-        SetWindowPos(hwnd,nullptr,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE|SWP_FRAMECHANGED);
+        platform::setOverlayInput(this,!drawing);
         update();
     }
 Q_SIGNALS:

@@ -108,6 +108,7 @@ bool launchTarget(const Action& action,QString& error) {
             args={"-NoLogo","-NoProfile"}; if(!a->hidden) args<<"-NoExit";
             args<<"-EncodedCommand"<<QString::fromLatin1(utf16.toBase64()); break;
         }
+        case Shell::Zsh: error=QStringLiteral("Zsh 仅适用于 macOS。");return false;
         case Shell::Wsl: program=system+"wsl.exe"; args={"--exec","sh","-lc",a->script}; break;
         }
         QProcess process; process.setProgram(program); process.setArguments(a->shell==Shell::Cmd?QStringList{}:args); process.setWorkingDirectory(a->directory);

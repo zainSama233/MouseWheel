@@ -27,7 +27,11 @@ ApplicationPicker::ApplicationPicker(Purpose purpose,QWidget* parent):QDialog(pa
     select_=new QPushButton(QCoreApplication::translate("MouseWheel","选择")); select_->setObjectName("application-select"); select_->setEnabled(false); select_->setDefault(true);
     footer->addWidget(browse); footer->addStretch(); footer->addWidget(cancel); footer->addWidget(select_); root->addLayout(footer);
     connect(browse,&QPushButton::clicked,this,[this]{
+#ifdef Q_OS_MACOS
+        const auto path=QFileDialog::getOpenFileName(this,QCoreApplication::translate("MouseWheel","选择程序"),"/Applications","Applications (*.app);;All files (*)");
+#else
         const auto path=QFileDialog::getOpenFileName(this,QCoreApplication::translate("MouseWheel","选择程序"),{},QCoreApplication::translate("MouseWheel","程序 (*.exe)"));
+#endif
         if(path.isEmpty()) return;
         Q_EMIT chosen({QFileInfo(path).completeBaseName(),path,path},useIcon_->isChecked()); accept();
     });
@@ -50,7 +54,7 @@ void ApplicationPicker::reload() {
         entries_=watcher->result(); refresh_->setEnabled(true); filter();
     });
     const bool running=source_->currentIndex()==1;
-    watcher->setFuture(QtConcurrent::run([running,cancelled]{return running?win::runningApplications():win::discoverApplications(win::applicationShortcutRoots(),cancelled.get());}));
+    watcher->setFuture(QtConcurrent::run([running,cancelled]{return running?platform::runningApplications():platform::discoverApplications(platform::applicationShortcutRoots(),cancelled.get());}));
 }
 void ApplicationPicker::filter() {
     list_->clear(); const auto query=search_->text().trimmed();

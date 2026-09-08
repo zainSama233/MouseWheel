@@ -24,7 +24,7 @@ private Q_SLOTS:
         const QList<Action> actions{Shortcut{Qt::Key_Pause,0},ScreenshotAction{},AnnotationAction{},
             ApplicationAction{"C:/Windows/notepad.exe","arg","C:/Windows",false},
             WebsiteAction{"https://example.com",Browser::Custom,"C:/browser.exe"},
-            FolderAction{FolderLocation::Path,"C:/Windows"},CommandAction{Shell::Wsl,"printf hello","C:/Windows",false},
+            FolderAction{FolderLocation::Path,"C:/Windows"},CommandAction{Shell::Wsl,"printf hello","C:/Windows",false},CommandAction{Shell::Zsh,"printf hello",{},true},
             OcrAction{OcrProvider::Ai,"https://example.com/recognize","key","vision","text"},
             WindowAction{WindowOperation::Opacity,72},SystemAction{SystemOperation::NewDesktop}};
         for(const auto& action:actions) {
