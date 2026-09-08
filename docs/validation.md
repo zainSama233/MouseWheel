@@ -22,7 +22,9 @@
 | 注入与启动 | 通过：[注入测试](../tests/injection_tests.cpp)、[启动测试](../tests/launcher_tests.cpp)，修饰键计划、失败清理、中文及空格路径、真实程序与快捷方式启动 |
 | 工具回归 | 通过：[应用测试](../tests/app_tests.cpp)、[截图测试](../tests/screenshot_tests.cpp)、[屏幕标注测试](../tests/screen_annotation_tests.cpp)，设置、轮盘、贴图及独立标注的生命周期与输入交互 |
 
-当前运行 workspace、actions、core、config、iteration、icons、ui、desktop、app、screenshot、screen_annotation、extended 共 12 个受影响目标，全部通过，未执行全量测试。程序发现与注入专项沿用既有验证。迭代及桌面详细结果位于 `build/iteration-results.txt`、`build/desktop-results.txt`，布局与设置截图位于 `build/artifacts/iteration-*.png`。
+高级设置界面调整运行 iteration、ui 两个受影响目标；覆盖默认隐藏、切换不写盘、隐藏后保留样式与边距、语言切换及重新打开。基本模式截图位于 `build/artifacts/settings-basic.png`。
+
+工作区功能验收运行 workspace、actions、core、config、iteration、icons、ui、desktop、app、screenshot、screen_annotation、extended 共 12 个受影响目标，全部通过，未执行全量测试。程序发现与注入专项沿用既有验证。迭代及桌面详细结果位于 `build/iteration-results.txt`、`build/desktop-results.txt`，布局与设置截图位于 `build/artifacts/iteration-*.png`。
 
 [桌面测试](../tests/desktop_tests.cpp) 使用 SendInput 注入移动与中键输入，覆盖前台方案匹配、全局回退、中心动作快照、排除优先级、真实桌面采样材质及四种形态下的分组悬停、刚展开松键取消及移动后执行；不能替代物理鼠标长期使用验收。
 

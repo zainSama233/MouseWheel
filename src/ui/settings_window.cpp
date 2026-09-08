@@ -72,15 +72,17 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     appearance->addStretch();layout->addLayout(appearance);
     connect(shape_,&QComboBox::currentIndexChanged,this,&SettingsWindow::submit);
     rules_=new TriggerRulesEditor; layout->addWidget(rules_); connect(rules_,&TriggerRulesEditor::edited,this,&SettingsWindow::submit);
-    auto* behavior=new QGridLayout;
-    centerEnabled_=new QCheckBox(QCoreApplication::translate("MouseWheel","启用主中心动作"));centerEnabled_->setObjectName("center-enabled");behavior->addWidget(centerEnabled_,0,0,1,2);
+    auto* advanced=new QCheckBox(QCoreApplication::translate("MouseWheel","高级设置"));advanced->setObjectName("advanced-settings");appearance->addWidget(advanced);
+    auto* precision=new QWidget;precision->hide();
+    auto* behavior=new QGridLayout(precision);behavior->setContentsMargins(0,0,0,0);
+    centerEnabled_=new QCheckBox(QCoreApplication::translate("MouseWheel","启用主中心动作"));centerEnabled_->setObjectName("center-enabled");layout->addWidget(centerEnabled_);
     deadZone_=new QDoubleSpinBox;deadZone_->setObjectName("center-dead-zone");deadZone_->setRange(12,52);deadZone_->setSuffix(" px");behavior->addWidget(new QLabel(QCoreApplication::translate("MouseWheel","死区")),0,2);behavior->addWidget(deadZone_,0,3);
     marginX_=new QDoubleSpinBox;marginY_=new QDoubleSpinBox;int axis=0;
     for(auto* input:{marginX_,marginY_}) {input->setRange(0,300);input->setSuffix(" px");input->setObjectName(axis==0?"safe-margin-x":"safe-margin-y");behavior->addWidget(new QLabel(axis==0?"X":"Y"),1,axis*2);behavior->addWidget(input,1,axis*2+1);++axis;connect(input,&QDoubleSpinBox::valueChanged,this,&SettingsWindow::submit);}
-    edgePolicy_=new QComboBox;edgePolicy_->addItems({QCoreApplication::translate("MouseWheel","边缘平移"),QCoreApplication::translate("MouseWheel","边缘缩小")});behavior->addWidget(edgePolicy_,1,4);layout->addLayout(behavior);
+    edgePolicy_=new QComboBox;edgePolicy_->addItems({QCoreApplication::translate("MouseWheel","边缘平移"),QCoreApplication::translate("MouseWheel","边缘缩小")});behavior->addWidget(edgePolicy_,1,4);layout->addWidget(precision);
     connect(centerEnabled_,&QCheckBox::toggled,this,&SettingsWindow::submit);connect(deadZone_,&QDoubleSpinBox::valueChanged,this,&SettingsWindow::submit);connect(edgePolicy_,&QComboBox::currentIndexChanged,this,&SettingsWindow::submit);
     frosted_=new QCheckBox(QCoreApplication::translate("MouseWheel","毛玻璃材质"));layout->addWidget(frosted_);connect(frosted_,&QCheckBox::toggled,this,&SettingsWindow::submit);
-    styleEditor_=new StyleEditor;styleEditor_->setObjectName("wheel-style");styleEditor_->setStore(&store_);layout->addWidget(styleEditor_);connect(styleEditor_,&StyleEditor::edited,this,&SettingsWindow::submit);
+    styleEditor_=new StyleEditor;styleEditor_->setObjectName("wheel-style");styleEditor_->hide();styleEditor_->setStore(&store_);layout->addWidget(styleEditor_);connect(styleEditor_,&StyleEditor::edited,this,&SettingsWindow::submit);
     navigation_=new QComboBox;navigation_->setProperty("locale-user-items",true);navigation_->setObjectName("wheel-navigation");layout->addWidget(navigation_);
     auto* body = new QHBoxLayout;
     auto* slots=new QListWidget; slots_=slots; slots->setFrameShape(QFrame::NoFrame); slots->setSpacing(5); slots->setObjectName("slot-list"); slots->setMinimumHeight(170);
@@ -94,6 +96,10 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
             group_=i;populate();slots_->setCurrentRow(0);
         });
     }
+    connect(advanced,&QCheckBox::toggled,this,[this,precision](bool enabled){
+        precision->setVisible(enabled);styleEditor_->setVisible(enabled);
+        for(auto* editor:editors_)editor->setAdvancedSettingsVisible(enabled);
+    });
     connect(slots,&QListWidget::currentRowChanged,pages,&QStackedWidget::setCurrentIndex); slots->setCurrentRow(0);
     body->addWidget(pages,1);
     auto* sideHost=new QWidget;sideHost->setFixedWidth(380);root->addWidget(sideHost);

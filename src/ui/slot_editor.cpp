@@ -141,7 +141,7 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
         if(source==int(IconSource::Automatic)) iconTimer_->start();
     });
     label_=new QCheckBox(QCoreApplication::translate("MouseWheel","显示名称")); appearance->addRow(label_); connect(label_,&QCheckBox::toggled,this,changed);
-    styleEditor_=new StyleEditor;root->addWidget(styleEditor_);connect(styleEditor_,&StyleEditor::edited,this,&SlotEditor::edited);
+    styleEditor_=new StyleEditor;styleEditor_->hide();root->addWidget(styleEditor_);connect(styleEditor_,&StyleEditor::edited,this,&SlotEditor::edited);
     auto* clear=new QPushButton(QCoreApplication::translate("MouseWheel","清空槽位")); root->addWidget(clear); connect(clear,&QPushButton::clicked,this,[this]{
         if(slot().kind()==ActionKind::Group && std::any_of(group_.slots.begin(),group_.slots.end(),[](const Slot& s){return s.enabled();}) &&
            QMessageBox::question(this,QCoreApplication::translate("MouseWheel","清空分组"),QCoreApplication::translate("MouseWheel","清空此分组及其中所有动作？"))!=QMessageBox::Yes) return;
@@ -158,6 +158,9 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
         if(value==int(ActionKind::Group)) label_->setChecked(true);Q_EMIT edited();
     });
     root->addStretch(); setSlot({});
+}
+void SlotEditor::setAdvancedSettingsVisible(bool visible) {
+    styleEditor_->setVisible(visible);
 }
 void SlotEditor::setStore(ConfigStore* store) {
     store_=store;styleEditor_->setStore(store);libraryButton_->setEnabled(store_!=nullptr);

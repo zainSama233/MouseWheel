@@ -1,6 +1,7 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QPushButton>
 #include <QLineEdit>
 #include <QListWidget>
@@ -21,6 +22,28 @@ class IterationTests:public QObject {
     Q_OBJECT
 private Q_SLOTS:
     void cleanup(){Localization::instance().setLanguage(Language::SimplifiedChinese);}
+    void advancedSettingsPreserveValues() {
+        QTemporaryDir dir;ConfigStore store(dir.filePath("config.json"));auto c=defaultConfig();
+        c.style.iconSize=44;c.slots[0].style.fontSize=18;c.safetyMargin={24,32};QVERIFY(store.commit(c));
+        SettingsWindow settings(store);settings.show();QVERIFY(QTest::qWaitForWindowExposed(&settings));
+        auto* advanced=settings.findChild<QCheckBox*>("advanced-settings");QVERIFY(advanced);QVERIFY(!advanced->isChecked());
+        auto* global=settings.findChild<StyleEditor*>("wheel-style");
+        auto* slot=settings.findChild<SlotEditor*>("slot-editor-0")->findChild<StyleEditor*>();
+        auto* margin=settings.findChild<QDoubleSpinBox*>("safe-margin-x");
+        QVERIFY(!global->isVisibleTo(&settings));QVERIFY(!slot->isVisibleTo(&settings));QVERIFY(!margin->isVisibleTo(&settings));
+        QSignalSpy changes(&store,&ConfigStore::changed);
+        advanced->click();QVERIFY(global->isVisibleTo(&settings));QVERIFY(slot->isVisibleTo(&settings));QVERIFY(margin->isVisibleTo(&settings));
+        QCOMPARE(changes.count(),0);margin->setValue(48);QCOMPARE(store.current().safetyMargin.x(),48.0);
+        const auto saved=store.current();changes.clear();advanced->click();QCOMPARE(changes.count(),0);QCOMPARE(store.current(),saved);
+        for(auto* editor:settings.findChildren<SlotEditor*>())QVERIFY(editor->findChild<StyleEditor*>()->isHidden());
+        settings.findChild<QComboBox*>("theme")->setCurrentIndex(int(Theme::Dark));
+        QCOMPARE(store.current().style,c.style);QCOMPARE(store.current().slots[0].style,c.slots[0].style);
+        QCOMPARE(store.current().safetyMargin,QPointF(48,32));
+        QTest::qWait(100);QDir().mkpath("artifacts");QVERIFY(settings.grab().save("artifacts/settings-basic.png"));
+        advanced->click();settings.findChild<QComboBox*>("language")->setCurrentIndex(int(Language::English));
+        QVERIFY(advanced->isChecked());QCOMPARE(advanced->text(),QString("Advanced settings"));
+        SettingsWindow reopened(store);QVERIFY(!reopened.findChild<QCheckBox*>("advanced-settings")->isChecked());
+    }
     void languageSwitchPreservesDraft() {
         QTemporaryDir dir;ConfigStore store(dir.filePath("config.json"));QVERIFY(store.commit(defaultConfig()));
         SettingsWindow settings(store);settings.show();QVERIFY(QTest::qWaitForWindowExposed(&settings));

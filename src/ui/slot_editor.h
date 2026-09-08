@@ -15,6 +15,7 @@ public:
     Slot slot() const;
     void setGroupsAllowed(bool allowed);
     void setStore(ConfigStore* store);
+    void setAdvancedSettingsVisible(bool visible);
 Q_SIGNALS:
     void edited();
     void editGroup();
