@@ -81,6 +81,8 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     connect(slots,&QListWidget::currentRowChanged,this,[this](int index){preview_->select(0,index);});
     connect(preview_,&WheelWindow::slotsSwapped,this,[this](int source,int target){
         const auto first=editors_[source]->slot(),second=editors_[target]->slot();
+        const auto error=validate(first).isEmpty()?validate(second):validate(first);
+        if(!error.isEmpty()) {status_->setText(QStringLiteral("请先填写交换槽位：")+error); return;}
         editors_[source]->setSlot(second); editors_[target]->setSlot(first); submit();
         if(status_->property("failed").toBool()) {editors_[source]->setSlot(first); editors_[target]->setSlot(second);}
         else slots_->setCurrentRow(target);
@@ -94,13 +96,7 @@ SettingsWindow::SettingsWindow(ConfigStore& store) : store_(store) {
     auto* location = new QLabel(QStringLiteral("配置位置")); location->setToolTip(store_.path()); location->setObjectName("muted");
     footer->addWidget(location); footer->addStretch();
     auto* reset = new QPushButton(QStringLiteral("恢复默认"));
-    auto* close = new QPushButton(QStringLiteral("完成")); close->setObjectName("primary");
-    footer->addWidget(reset); footer->addWidget(close); layout->addLayout(footer);
-    connect(close,&QPushButton::clicked,this,[this]{
-        submit();
-        if (status_->property("failed").toBool()) return;
-        QWidget::close();
-    });
+    footer->addWidget(reset); layout->addLayout(footer);
     connect(reset,&QPushButton::clicked,this,[this]{
         if (QMessageBox::question(this,QStringLiteral("恢复默认"),
             QStringLiteral("用默认配置替换当前配置文件？")) != QMessageBox::Yes) return;
@@ -128,7 +124,7 @@ void SettingsWindow::populate() {
 }
 void SettingsWindow::submit() {
     if (populating_) return;
-    Config draft; draft.triggerRules=rules_->rules();
+    Config draft=store_.current(); draft.triggerRules=rules_->rules();
     draft.modifier = static_cast<Modifier>(modifier_->currentData().toInt());
     if (draft.modifier == Modifier::None) {
         const QSignalBlocker blocker(button_);
@@ -138,11 +134,17 @@ void SettingsWindow::submit() {
     draft.button = static_cast<MouseButton>(button_->currentIndex());
     draft.theme = static_cast<Theme>(theme_->currentIndex());
     draft.shape=static_cast<WheelShape>(shape_->currentIndex()); draft.centerImage=centerImage_;
-    for(int i=0;i<8;++i) draft.slots[i]=editors_[i]->slot();
+    QStringList unfinished;
+    for(int i=0;i<8;++i) {
+        const auto slot=editors_[i]->slot(); const auto error=validate(slot);
+        if(error.isEmpty()) draft.slots[i]=slot;
+        else unfinished.append(QStringLiteral("槽位 %1：%2").arg(i+1).arg(error));
+    }
+    const bool themeChanged=draft.theme!=store_.current().theme;
     const bool ok = !store_.blocked() && draft == store_.current() ? true : store_.commit(draft);
     status_->setProperty("failed",!ok);
-    status_->setText(ok ? QStringLiteral("已保存 · 设置打开时暂停轮盘") : store_.error());
+    status_->setText(!ok?store_.error():unfinished.isEmpty()?QStringLiteral("自动保存 · 关闭设置后恢复轮盘"):QStringLiteral("其他改动已保存；以下槽位未填完整：\n")+unfinished.join("\n"));
     if(ok) for(int i=0;i<8;++i) slots_->item(i)->setText(QString::number(i+1)+"  "+(draft.slots[i].name.isEmpty()?QStringLiteral("空槽位"):draft.slots[i].name));
-    if (ok) { setStyleSheet(settingsStyle(draft.theme)); preview_->preview(draft); }
+    if (ok) { if(themeChanged) setStyleSheet(settingsStyle(draft.theme)); preview_->preview(draft); }
 }
 }

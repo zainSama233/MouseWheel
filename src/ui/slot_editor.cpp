@@ -2,6 +2,8 @@
 #include "ui/application_picker.h"
 #include "ui/shortcut_editor.h"
 #include "ui/action_icons.h"
+#include "tools/website_icon.h"
+#include <QTimer>
 #include "core/image_asset.h"
 #include <QLineEdit>
 #include <QComboBox>
@@ -30,12 +32,14 @@ public:
 };
 SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     setObjectName(QString("slot-editor-%1").arg(index));
+    iconTimer_=new QTimer(this); iconTimer_->setSingleShot(true); iconTimer_->setInterval(350);
+    connect(iconTimer_,&QTimer::timeout,this,&SlotEditor::refreshAutomaticIcon);
     auto* root=new QVBoxLayout(this); root->setContentsMargins(0,0,0,0);
     auto* head=new QFormLayout; root->addLayout(head);
     const auto changed=[this]{if(!loading_) Q_EMIT edited();};
     const auto line=[&](QFormLayout* form,const QString& label,const QString& object=QString{}) {
         auto* field=new QLineEdit; field->setObjectName(object); field->setMaxLength(8192); form->addRow(label,field);
-        connect(field,&QLineEdit::editingFinished,this,changed); return field;
+        connect(field,&QLineEdit::textChanged,this,changed); return field;
     };
     const auto combo=[&](QFormLayout* form,const QString& label,const QStringList& entries) {
         auto* field=new QComboBox; field->addItems(entries); form->addRow(label,field); connect(field,&QComboBox::currentIndexChanged,this,changed); return field;
@@ -68,7 +72,7 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
         connect(picker,&ApplicationPicker::chosen,this,[this](const ApplicationEntry& entry,bool useIcon){
             auto current=slot(); current.action=ApplicationAction{entry.path,{},{},normal_->isChecked()};
             if(current.name.isEmpty() || current.name==actionKindName(ActionKind::Application)) current.name=entry.name.left(12);
-            if(useIcon) current.icon={IconSource::Program,entry.path,{}};
+            if(useIcon) current.icon={IconSource::Program,entry.executable,{}};
             setSlot(current); Q_EMIT edited();
         }); picker->open();
     });
@@ -77,7 +81,10 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     url_=line(forms[4],QStringLiteral("网址"),QString("slot-target-%1").arg(index));
     browser_=combo(forms[4],QStringLiteral("浏览器"),{QStringLiteral("系统默认"),"Chrome","Edge","Firefox",QStringLiteral("自定义")});
     browserPath_=line(forms[4],QStringLiteral("自定义浏览器")); browse(forms[4],browserPath_,false);
-    connect(url_,&QLineEdit::editingFinished,this,[this]{auto value=url_->text().trimmed(); if(!value.isEmpty() && !value.contains("://")) {url_->setText("https://"+value); Q_EMIT edited();}});
+    connect(url_,&QLineEdit::textChanged,this,[this]{
+        if(loading_) return; if(websiteIcon_) websiteIcon_->cancel();
+        if(iconSource_->currentIndex()==int(IconSource::Automatic)) iconTimer_->start();
+    });
     connect(browser_,&QComboBox::currentIndexChanged,this,[this](int value){browserPath_->setEnabled(value==int(Browser::Custom));});
     folder_=combo(forms[5],QStringLiteral("目录"),{QStringLiteral("自定义路径"),QStringLiteral("桌面"),QStringLiteral("下载"),QStringLiteral("文档"),QStringLiteral("图片"),QStringLiteral("用户目录"),QStringLiteral("此电脑"),QStringLiteral("回收站")});
     folderPath_=line(forms[5],QStringLiteral("路径")); browse(forms[5],folderPath_,true);
@@ -95,7 +102,7 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     connect(window_,&QComboBox::currentIndexChanged,this,[this](int value){opacity_->setEnabled(value==int(WindowOperation::Opacity));});
     system_=combo(forms[9],QStringLiteral("操作"),{QStringLiteral("锁屏"),QStringLiteral("音量增加"),QStringLiteral("音量降低"),QStringLiteral("静音"),QStringLiteral("播放／暂停"),QStringLiteral("下一首"),QStringLiteral("上一首"),QStringLiteral("任务视图"),QStringLiteral("上一个虚拟桌面"),QStringLiteral("下一个虚拟桌面"),QStringLiteral("新建虚拟桌面"),QStringLiteral("关闭虚拟桌面"),QStringLiteral("显示桌面")});
     auto* appearance=new QFormLayout; root->addLayout(appearance);
-    iconSource_=combo(appearance,QStringLiteral("图标来源"),{QStringLiteral("内置矢量图标"),QStringLiteral("程序图标"),QStringLiteral("自定义图片")});
+    iconSource_=combo(appearance,QStringLiteral("图标来源"),{QStringLiteral("内置矢量图标"),QStringLiteral("程序图标"),QStringLiteral("自定义图片"),QStringLiteral("自动获取")});
     iconSource_->setObjectName(QString("slot-icon-source-%1").arg(index)); icons_=new ContentStack; appearance->addRow(icons_);
     symbol_=new QComboBox; symbol_->setObjectName(QString("slot-symbol-%1").arg(index));
     for(const auto& icon:builtinIcons()) symbol_->addItem(symbolIcon(icon.id,QColor("#6579a8")),icon.title,icon.id); icons_->addWidget(symbol_); connect(symbol_,&QComboBox::currentIndexChanged,this,changed);
@@ -103,13 +110,27 @@ SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     iconProgram_=line(programForm,QStringLiteral("来源文件")); browse(programForm,iconProgram_,false); icons_->addWidget(programPage);
     auto* imageButton=new QPushButton(QStringLiteral("导入图片…")); icons_->addWidget(imageButton);
     connect(imageButton,&QPushButton::clicked,this,[this]{const auto path=QFileDialog::getOpenFileName(this,QStringLiteral("图标图片"),{},QStringLiteral("图片 (*.png *.jpg *.jpeg *.bmp)")); if(path.isEmpty()) return; QString error; QByteArray png; if(!importImageAsset(path,png,error)) {QMessageBox::warning(this,QStringLiteral("图片不可用"),error);return;} image_=png; Q_EMIT edited();});
+    auto* automaticPage=new QWidget; auto* automaticLayout=new QHBoxLayout(automaticPage); automaticLayout->setContentsMargins(0,0,0,0);
+    iconStatus_=new QLabel; iconStatus_->setWordWrap(true); automaticLayout->addWidget(iconStatus_,1);
+    auto* fetchIcon=new QPushButton(QStringLiteral("获取网站图标")); fetchIcon_=fetchIcon; fetchIcon->setObjectName(QString("slot-fetch-icon-%1").arg(index)); automaticLayout->addWidget(fetchIcon); icons_->addWidget(automaticPage);
+    connect(fetchIcon,&QPushButton::clicked,this,[this]{automaticUrl_.clear(); refreshAutomaticIcon();});
+    connect(kind_,&QComboBox::currentIndexChanged,this,[fetchIcon](int kind){fetchIcon->setVisible(kind==int(ActionKind::Website));});
     connect(iconSource_,&QComboBox::currentIndexChanged,icons_,&QStackedWidget::setCurrentIndex);
+    connect(iconSource_,&QComboBox::currentIndexChanged,this,[this](int source){
+        if(loading_) return;
+        if(websiteIcon_) websiteIcon_->cancel(); iconTimer_->stop();
+        if(source==int(IconSource::Automatic)) iconTimer_->start();
+    });
     label_=new QCheckBox(QStringLiteral("显示名称")); appearance->addRow(label_); connect(label_,&QCheckBox::toggled,this,changed);
     auto* clear=new QPushButton(QStringLiteral("清空槽位")); root->addWidget(clear); connect(clear,&QPushButton::clicked,this,[this]{setSlot({}); Q_EMIT edited();});
     connect(kind_,&QComboBox::currentIndexChanged,this,[this](int value){pages_->setCurrentIndex(value); if(loading_) return; if(name_->text().isEmpty()) name_->setText(actionKindName(ActionKind(value))); Q_EMIT edited();});
     root->addStretch(); setSlot({});
 }
 void SlotEditor::setSlot(const Slot& s) {
+    iconTimer_->stop(); if(websiteIcon_) websiteIcon_->cancel();
+    automaticUrl_=s.icon.source==IconSource::Automatic?s.icon.value:QString{};
+    automaticImage_=s.icon.source==IconSource::Automatic?s.icon.image:QByteArray{};
+    iconStatus_->clear(); fetchIcon_->setVisible(s.kind()==ActionKind::Website);
     loading_=true; name_->setText(s.name); kind_->setCurrentIndex(int(s.kind())); pages_->setCurrentIndex(int(s.kind()));
     shortcut_->setShortcut({}); appPath_->clear(); arguments_->clear(); directory_->clear(); normal_->setChecked(true);
     url_->clear(); browser_->setCurrentIndex(0); browserPath_->clear(); browserPath_->setEnabled(false);
@@ -128,7 +149,8 @@ void SlotEditor::setSlot(const Slot& s) {
         else if constexpr(std::is_same_v<T,WindowAction>) {window_->setCurrentIndex(int(a.operation));opacity_->setValue(a.opacity);}
         else if constexpr(std::is_same_v<T,SystemAction>) system_->setCurrentIndex(int(a.operation));
     },s.action);
-    iconSource_->setCurrentIndex(int(s.icon.source)); icons_->setCurrentIndex(int(s.icon.source)); symbol_->setCurrentIndex(symbol_->findData(s.icon.source==IconSource::Builtin?s.icon.value:"keyboard"));
+    const auto source=!s.enabled() && s.icon.source==IconSource::Builtin && s.icon.value=="keyboard"?IconSource::Automatic:s.icon.source;
+    iconSource_->setCurrentIndex(int(source)); icons_->setCurrentIndex(int(source)); symbol_->setCurrentIndex(symbol_->findData(s.icon.source==IconSource::Builtin?s.icon.value:"keyboard"));
     iconProgram_->setText(s.icon.source==IconSource::Program?s.icon.value:QString{}); image_=s.icon.image; label_->setChecked(s.showLabel); loading_=false;
 }
 Slot SlotEditor::slot() const {
@@ -138,7 +160,10 @@ Slot SlotEditor::slot() const {
     case ActionKind::Screenshot: s.action=ScreenshotAction{}; break;
     case ActionKind::ScreenAnnotation: s.action=AnnotationAction{}; break;
     case ActionKind::Application: s.action=ApplicationAction{appPath_->text().trimmed(),arguments_->text(),directory_->text().trimmed(),normal_->isChecked()}; break;
-    case ActionKind::Website: s.action=WebsiteAction{url_->text().trimmed(),Browser(browser_->currentIndex()),browserPath_->text().trimmed()}; break;
+    case ActionKind::Website: {
+        auto url=url_->text().trimmed(); if(!url.isEmpty() && !url.contains("://")) url="https://"+url;
+        s.action=WebsiteAction{url,Browser(browser_->currentIndex()),browserPath_->text().trimmed()}; break;
+    }
     case ActionKind::Folder: s.action=FolderAction{FolderLocation(folder_->currentIndex()),folderPath_->text().trimmed()}; break;
     case ActionKind::Command: s.action=CommandAction{Shell(shell_->currentIndex()),script_->toPlainText(),commandDirectory_->text().trimmed(),hidden_->isChecked()}; break;
     case ActionKind::Ocr: s.action=OcrAction{OcrProvider(provider_->currentIndex()),endpoint_->text().trimmed(),apiKey_->text(),model_->text().trimmed(),resultPath_->text().trimmed()}; break;
@@ -146,6 +171,24 @@ Slot SlotEditor::slot() const {
     case ActionKind::System: s.action=SystemAction{SystemOperation(system_->currentIndex())}; break;
     }
     s.icon.source=IconSource(iconSource_->currentIndex()); s.icon.value=s.icon.source==IconSource::Builtin?symbol_->currentData().toString():s.icon.source==IconSource::Program?iconProgram_->text().trimmed():QString{};
-    if(s.icon.source==IconSource::Image) s.icon.image=image_; s.showLabel=label_->isChecked(); return s;
+    if(s.icon.source==IconSource::Image) s.icon.image=image_;
+    if(s.icon.source==IconSource::Automatic && s.kind()==ActionKind::Website) {s.icon.value=automaticUrl_; s.icon.image=automaticImage_;}
+    s.showLabel=label_->isChecked(); return s;
 }
+void SlotEditor::refreshAutomaticIcon() {
+    if(loading_ || iconSource_->currentIndex()!=int(IconSource::Automatic) || kind_->currentIndex()!=int(ActionKind::Website)) return;
+    const auto url=std::get<WebsiteAction>(slot().action).url;
+    if(!validate(Action{WebsiteAction{url}}).isEmpty() || (url==automaticUrl_ && !automaticImage_.isEmpty())) return;
+    if(!websiteIcon_) {
+        websiteIcon_=new WebsiteIcon(this);
+        connect(websiteIcon_,&WebsiteIcon::ready,this,[this](const QUrl& requested,const QByteArray& png,const QString& error){
+            if(iconSource_->currentIndex()!=int(IconSource::Automatic) || kind_->currentIndex()!=int(ActionKind::Website) ||
+               QUrl(std::get<WebsiteAction>(slot().action).url)!=requested) return;
+            iconStatus_->setText(error.isEmpty()?QStringLiteral("网站图标已缓存"):error);
+            if(!png.isEmpty()) {automaticUrl_=std::get<WebsiteAction>(slot().action).url; automaticImage_=png; Q_EMIT edited();}
+        });
+    }
+    iconStatus_->setText(QStringLiteral("正在获取网站图标…")); websiteIcon_->load(QUrl(url));
+}
+
 }

@@ -61,7 +61,7 @@ struct SystemAction {
     bool operator==(const SystemAction&) const = default;
 };
 using Action=std::variant<Shortcut,ScreenshotAction,AnnotationAction,ApplicationAction,WebsiteAction,FolderAction,CommandAction,OcrAction,WindowAction,SystemAction>;
-enum class IconSource { Builtin, Program, Image };
+enum class IconSource { Builtin, Program, Image, Automatic };
 struct IconSpec {
     IconSource source=IconSource::Builtin; QString value="keyboard"; QByteArray image;
     bool operator==(const IconSpec&) const = default;
@@ -78,10 +78,10 @@ QPointF slotCenter(int index);
 struct Slot {
     QString name;
     Action action=Shortcut{};
-    IconSpec icon;
+    IconSpec icon{IconSource::Automatic,{},{}};
     bool showLabel=false;
     Slot()=default;
-    Slot(QString title,Action value) : name(std::move(title)),action(std::move(value)),icon(suggestedIcon(action)),showLabel(kind()!=ActionKind::Shortcut) {}
+    Slot(QString title,Action value) : name(std::move(title)),action(std::move(value)),icon((kind()==ActionKind::Application || kind()==ActionKind::Website)?IconSpec{IconSource::Automatic,{},{}}:suggestedIcon(action)),showLabel(kind()!=ActionKind::Shortcut) {}
     ActionKind kind() const { return static_cast<ActionKind>(action.index()); }
     bool enabled() const { const auto* key=std::get_if<Shortcut>(&action); return !key || key->key!=0; }
     bool operator==(const Slot&) const = default;

@@ -1,13 +1,12 @@
 #include "platform/application_catalog.h"
 #include "platform/window_context.h"
+#include "platform/program_icon.h"
 #include <QDirIterator>
 #include <QFileInfo>
 #include <QSettings>
-#include <QScopeGuard>
 #include <QSet>
 #include <Windows.h>
 #include <shlobj.h>
-#include <wrl/client.h>
 #include <dwmapi.h>
 namespace wheel::win {
 QStringList applicationShortcutRoots() {
@@ -20,8 +19,6 @@ QStringList applicationShortcutRoots() {
     return roots;
 }
 QList<ApplicationEntry> discoverApplications(const QStringList& roots,const std::atomic_bool* cancelled) {
-    const HRESULT initialized=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
-    const auto cleanup=qScopeGuard([&]{if(SUCCEEDED(initialized)) CoUninitialize();});
     QList<ApplicationEntry> result; QSet<QString> seen;
     for(const auto& root:roots) {
         QDirIterator files(root,{"*.lnk"},QDir::Files,QDirIterator::Subdirectories);
@@ -30,14 +27,7 @@ QList<ApplicationEntry> discoverApplications(const QStringList& roots,const std:
             const auto path=files.next(); const auto identity=QDir::cleanPath(path).toCaseFolded();
             if(seen.contains(identity)) continue;
             seen.insert(identity);
-            Microsoft::WRL::ComPtr<IShellLinkW> link; Microsoft::WRL::ComPtr<IPersistFile> file;
-            if(FAILED(CoCreateInstance(CLSID_ShellLink,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&link))) || FAILED(link.As(&file)) ||
-               FAILED(file->Load(reinterpret_cast<LPCWSTR>(path.utf16()),STGM_READ))) continue;
-            wchar_t target[32768]{};
-            if(FAILED(link->GetPath(target,32768,nullptr,SLGP_RAWPATH))) continue;
-            wchar_t expanded[32768]{}; const DWORD length=ExpandEnvironmentStringsW(target,expanded,32768);
-            if(!length || length>32768) continue;
-            const auto executable=QDir::fromNativeSeparators(QString::fromWCharArray(expanded));
+            const auto executable=readShortcut(path).target;
             if(!executable.endsWith(".exe",Qt::CaseInsensitive)) continue;
             result.append({QFileInfo(path).completeBaseName(),path,executable});
         }

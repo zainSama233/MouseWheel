@@ -2,6 +2,7 @@
 #include <QImageReader>
 #include <QBuffer>
 #include <QFileInfo>
+#include <QFile>
 namespace wheel {
 QImage decodeImageAsset(const QByteArray& png) {
     if(png.isEmpty() || png.size()>65536) return {};
@@ -12,9 +13,15 @@ QImage decodeImageAsset(const QByteArray& png) {
     return reader.read();
 }
 bool importImageAsset(const QString& path,QByteArray& png,QString& error) {
-    error.clear(); QImageReader reader(path); reader.setAutoTransform(true);
+    QFile file(path);
+    if(!file.open(QIODevice::ReadOnly) || file.size()>10*1024*1024) {error=QStringLiteral("无法读取图片或文件过大。"); return false;}
+    return importImageAsset(file.readAll(),png,error);
+}
+bool importImageAsset(const QByteArray& bytes,QByteArray& png,QString& error) {
+    error.clear(); QBuffer input; input.setData(bytes); input.open(QIODevice::ReadOnly);
+    QImageReader reader(&input); reader.setAutoTransform(true); reader.setDecideFormatFromContent(true);
     const auto size=reader.size();
-    if(QFileInfo(path).size()>10*1024*1024 || !size.isValid() || qint64(size.width())*size.height()>20000000) {
+    if(bytes.size()>10*1024*1024 || !size.isValid() || qint64(size.width())*size.height()>20000000) {
         error=QStringLiteral("请选择小于 10 MB、2000 万像素的图片。"); return false;
     }
     reader.setScaledSize(size.scaled(96,96,Qt::KeepAspectRatio));

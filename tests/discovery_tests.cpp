@@ -11,6 +11,7 @@
 #include <wrl/client.h>
 #include "platform/application_catalog.h"
 #include "platform/window_context.h"
+#include "platform/program_icon.h"
 using namespace wheel;
 class DiscoveryTests:public QObject {
     Q_OBJECT
@@ -30,6 +31,17 @@ private Q_SLOTS:
         QVERIFY(it!=apps.end()); QCOMPARE(it->name,QStringLiteral("测试 应用"));
         QCOMPARE(it->executable.compare(QDir::fromNativeSeparators(target),Qt::CaseInsensitive),0);
         QCOMPARE(it->path,path); // Launch the shortcut itself so arguments and working directory survive.
+    }
+    void programIconResolvesShortcutToExe() {
+        const HRESULT hr=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
+        const auto cleanup=qScopeGuard([&]{if(SUCCEEDED(hr)) CoUninitialize();});
+        QTemporaryDir dir; const auto path=dir.filePath("Notepad.lnk");
+        Microsoft::WRL::ComPtr<IShellLinkW> link; Microsoft::WRL::ComPtr<IPersistFile> file;
+        QVERIFY(SUCCEEDED(CoCreateInstance(CLSID_ShellLink,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&link))));
+        QVERIFY(SUCCEEDED(link->SetPath(L"C:\\Windows\\System32\\notepad.exe")));
+        QVERIFY(SUCCEEDED(link.As(&file))); QVERIFY(SUCCEEDED(file->Save(reinterpret_cast<LPCWSTR>(path.utf16()),TRUE)));
+        const auto direct=win::programIcon("C:/Windows/System32/notepad.exe");
+        QVERIFY(!direct.isNull()); QCOMPARE(win::programIcon(path),direct);
     }
     void discoversRunningNotepad() {
         QProcess notepad; notepad.start("notepad.exe"); QVERIFY(notepad.waitForStarted());

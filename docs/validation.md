@@ -13,13 +13,15 @@
 | 动作模型与图标 | 通过：[动作测试](../tests/action_tests.cpp)，所有动作类型、独立图标、严格解码 |
 | 触发状态与几何 | 通过：[核心测试](../tests/core_tests.cpp)，形状命中、取消、配置快照、暂停和配对释放 |
 | 配置事务 | 通过：[配置测试](../tests/config_tests.cpp)，真实文件读写、旧配置读取、暂停规则、损坏保护 |
+| 程序图标 | 通过：[发现测试](../tests/discovery_tests.cpp)，真实 EXE 图标与解析快捷方式后图标一致 |
+| 网站图标 | 通过：[图标测试](../tests/icon_tests.cpp)，相对链接、HTML 实体、favicon、PNG／ICO／SVG、缓存持久化、失败及取消；显式开启在线测试后 Python 官网实测通过 |
 | 应用发现 | 通过：[发现测试](../tests/discovery_tests.cpp)，真实 Shell 快捷方式、运行中的记事本、窗口路径与全屏判定 |
-| 设置界面 | 通过：[UI 测试](../tests/ui_tests.cpp)，应用搜索与选择、回车确认、可选程序图标、暂停应用增删与保存、三种形状的整槽交换、失败时草稿保留、选择器关闭与主题截图 |
+| 设置界面 | 通过：[UI 测试](../tests/ui_tests.cpp)，输入后即时保存、未完成槽位不阻塞其他改动、关闭窗口无需确认、应用搜索与选择、回车确认、可选程序图标、暂停应用增删与保存、三种形状的整槽交换、失败时草稿保留、选择器关闭与主题截图 |
 | 输入与场景暂停 | 通过：[桌面测试](../tests/desktop_tests.cpp)，真实 Win32 钩子和 SendInput；应用排除、全屏进入／退出、按住期间规则变化、原始中键成对放行及恢复触发 |
 | 注入与启动 | 通过：[注入测试](../tests/injection_tests.cpp)、[启动测试](../tests/launcher_tests.cpp)，修饰键计划、失败清理、中文及空格路径、真实程序与快捷方式启动 |
 | 工具回归 | 通过：[应用测试](../tests/app_tests.cpp)、[截图测试](../tests/screenshot_tests.cpp)、[屏幕标注测试](../tests/screen_annotation_tests.cpp)，设置、轮盘、贴图及独立标注的生命周期与输入交互 |
 
-本次运行上述 11 个受影响测试目标，未执行全量测试。界面截图检查包含明亮、护眼、深色设置及应用选择器。原生输入测试使用系统合成输入驱动真实钩子，不能替代物理鼠标长期使用验收。
+本次运行 actions、core、config、icons、discovery、ui、desktop、app、launcher、screenshot、screen_annotation 共 11 个受影响目标，未执行全量测试。注入测试沿用既有验证。界面截图检查包含明亮、护眼、深色设置及应用选择器。原生输入测试使用系统合成输入驱动真实钩子，不能替代物理鼠标长期使用验收。标注的桌面点击测试曾在连续运行中失败、独立复测通过；夹具补充了置顶目标与命中检查、异步点击等待，逐项日志保存在 `build/screen-annotation-results.txt`。
 
 扩展动作的既有验证见 [扩展测试](../tests/extended_tests.cpp)：CMD／PowerShell、目录打开、窗口置顶／透明度／平铺、本地 OCR 图片识别；HTTP 与 AI 请求使用本机服务验证结果、失败和取消。该目标本次未重跑，未向外部模型发送屏幕内容。
 

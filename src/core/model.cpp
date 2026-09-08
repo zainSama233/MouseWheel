@@ -105,7 +105,8 @@ IconSpec suggestedIcon(const Action& action) {
 }
 QString validate(const Slot& slot) {
     if(slot.name.size()>12 || (slot.enabled() && slot.name.trimmed().isEmpty())) return QStringLiteral("请填写最多 12 字的名称。");
-    if(slot.icon.source<IconSource::Builtin || slot.icon.source>IconSource::Image) return QStringLiteral("图标来源无效。");
+    if(slot.icon.source<IconSource::Builtin || slot.icon.source>IconSource::Automatic) return QStringLiteral("图标来源无效。");
+    if(slot.icon.source==IconSource::Automatic && !slot.icon.image.isEmpty() && decodeImageAsset(slot.icon.image).isNull()) return QStringLiteral("自动图标缓存无效。");
     if(slot.icon.source==IconSource::Image && decodeImageAsset(slot.icon.image).isNull()) return QStringLiteral("槽位图片无效。");
     if(slot.icon.source==IconSource::Program && !QFileInfo(slot.icon.value).isAbsolute()) return QStringLiteral("请选择图标来源程序。");
     if(slot.icon.source==IconSource::Builtin && std::none_of(builtinIcons().begin(),builtinIcons().end(),[&](const auto& icon){return icon.id==slot.icon.value;})) return QStringLiteral("内置图标无效。");

@@ -155,6 +155,7 @@ private Q_SLOTS:
         const auto restore=qScopeGuard([&]{SetCursorPos(original.x,original.y);});
         QPushButton background("desktop target"); background.resize(400,240);
         background.move(120,160); background.show(); background.raise();
+        SetWindowPos(reinterpret_cast<HWND>(background.winId()),HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);
         QVERIFY(QTest::qWaitForWindowExposed(&background));
         QSignalSpy clicked(&background,&QPushButton::clicked);
         ScreenAnnotationSession session; session.start(Theme::Dark);
@@ -176,25 +177,27 @@ private Q_SLOTS:
             const auto point=widget->mapTo(window,widget->rect().center())*window->devicePixelRatioF();
             POINT native{point.x(),point.y()}; ClientToScreen(reinterpret_cast<HWND>(window->winId()),&native);
             SetCursorPos(native.x,native.y);
+            if(widget==&background && !session.drawing())
+                QCOMPARE(WindowFromPoint(native),reinterpret_cast<HWND>(background.winId()));
             INPUT input[2]{}; input[0].type=input[1].type=INPUT_MOUSE;
             input[0].mi.dwFlags=MOUSEEVENTF_LEFTDOWN; input[1].mi.dwFlags=MOUSEEVENTF_LEFTUP;
             QCOMPARE(SendInput(2,input,sizeof(INPUT)),UINT(2)); QTest::qWait(120);
         };
         click(); QCOMPARE(clicked.count(),0);
         click(toolbar->widgetForAction(toolbar->findChild<QAction*>("desktop-mode"))); QVERIFY(!session.drawing());
-        click(); QCOMPARE(clicked.count(),1);
+        click(); QTRY_COMPARE(clicked.count(),1);
         const auto imageBefore=background.screen()->grabWindow(0).toImage();
         background.setStyleSheet("background:#18cc42;"); QTest::qWait(200);
         QVERIFY(background.screen()->grabWindow(0).toImage()!=imageBefore);
         const auto history=session.document().history().count();
         click(toolbar->widgetForAction(toolbar->findChild<QAction*>("desktop-mode"))); QVERIFY(session.drawing());
         QCOMPARE(session.document().history().count(),history);
-        click(); QCOMPARE(clicked.count(),1);
+        click(); QTRY_COMPARE(clicked.count(),1);
         QDir().mkpath("artifacts"); QVERIFY(toolbar->grab().save("artifacts/screen-annotation-toolbar.png"));
         toolbar->findChild<QAction*>("exit-annotation")->trigger();
         QVERIFY(!session.active()); QVERIFY(!session.drawing());
         QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
-        click(); QCOMPARE(clicked.count(),2);
+        click(); QTRY_COMPARE(clicked.count(),2);
         session.start(Theme::Light); QCOMPARE(session.document().history().count(),0);
         session.stop();
     }

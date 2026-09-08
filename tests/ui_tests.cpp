@@ -29,6 +29,17 @@ using namespace wheel;
 class UiTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void incompleteSlotDoesNotBlockOtherEdits() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.commit(defaultConfig()));
+        SettingsWindow settings(store); settings.show(); QVERIFY(QTest::qWaitForWindowExposed(&settings));
+        settings.findChild<QComboBox*>("slot-kind-2")->setCurrentIndex(int(ActionKind::Application));
+        settings.findChild<QComboBox*>("theme")->setCurrentIndex(int(Theme::Dark));
+        QCOMPARE(store.current().theme,Theme::Dark);
+        auto* name=settings.findChild<QLineEdit*>("slot-name-0"); name->setFocus(); name->selectAll(); QTest::keyClicks(name,"Capture");
+        QCOMPARE(store.current().slots[0].name,QString("Capture"));
+        for(auto* button:settings.findChildren<QPushButton*>()) QVERIFY(button->text()!=QStringLiteral("完成"));
+        auto* page=new SettingsWindow(store); page->show(); page->findChild<QComboBox*>("slot-kind-3")->setCurrentIndex(int(ActionKind::Application)); QPointer<SettingsWindow> guard=page; page->close(); QTRY_VERIFY(guard.isNull());
+    }
     void applicationPickerAppliesTargetAndOptionalIcon() {
         SlotEditor editor(0); Slot original{"Custom",ApplicationAction{QCoreApplication::applicationFilePath()}};
         original.icon={IconSource::Builtin,"pencil",{}}; editor.setSlot(original); editor.show();
@@ -44,7 +55,7 @@ private Q_SLOTS:
             QCOMPARE(chosen.size(),1); const auto selected=chosen.first()[0].value<ApplicationEntry>();
             QCOMPARE(std::get<ApplicationAction>(editor.slot().action).path,selected.path);
             QCOMPARE(editor.slot().name,original.name);
-            if(useIcon) {QCOMPARE(editor.slot().icon.source,IconSource::Program); QCOMPARE(editor.slot().icon.value,selected.path);}
+            if(useIcon) {QCOMPARE(editor.slot().icon.source,IconSource::Program); QCOMPARE(editor.slot().icon.value,selected.executable);}
             else QCOMPARE(editor.slot().icon,original.icon);
             QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
         }
@@ -118,6 +129,7 @@ private Q_SLOTS:
     }
     void iconSurvivesActionChange() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load()); SettingsWindow settings(store);
+        settings.findChild<QComboBox*>("slot-icon-source-2")->setCurrentIndex(int(IconSource::Builtin));
         auto* symbol=settings.findChild<QComboBox*>("slot-symbol-2"); symbol->setCurrentIndex(symbol->findData("copy"));
         auto* kind=settings.findChild<QComboBox*>("slot-kind-2"); kind->setCurrentIndex(int(ActionKind::Website));
         auto* url=settings.findChild<QLineEdit*>("slot-target-2"); url->setText("https://example.com");QMetaObject::invokeMethod(url,"editingFinished");

@@ -1,9 +1,11 @@
 #pragma once
 #include <QWidget>
 #include "core/model.h"
+class QLabel; class QTimer; class QPushButton;
 class QLineEdit; class QComboBox; class QCheckBox; class QPlainTextEdit; class QSpinBox; class QStackedWidget;
 namespace wheel {
 class ShortcutEditor;
+class WebsiteIcon;
 class SlotEditor final:public QWidget {
     Q_OBJECT
 public:
@@ -13,6 +15,13 @@ public:
 Q_SIGNALS:
     void edited();
 private:
+    void refreshAutomaticIcon();
+    WebsiteIcon* websiteIcon_=nullptr;
+    QTimer* iconTimer_;
+    QLabel* iconStatus_;
+    QPushButton* fetchIcon_;
+    QString automaticUrl_;
+    QByteArray automaticImage_;
     QLineEdit *name_,*appPath_,*arguments_,*directory_,*url_,*browserPath_,*folderPath_,*commandDirectory_,*endpoint_,*apiKey_,*model_,*resultPath_,*iconProgram_;
     QComboBox *kind_,*browser_,*folder_,*shell_,*provider_,*window_,*system_,*iconSource_,*symbol_;
     QCheckBox *normal_,*hidden_,*label_;

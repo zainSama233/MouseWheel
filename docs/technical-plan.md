@@ -14,6 +14,7 @@
 - [按需应用发现](../src/platform/application_catalog.h)、[窗口上下文](../src/platform/window_context.h)、[应用选择器](../src/ui/application_picker.h)、[暂停规则编辑](../src/ui/trigger_rules_editor.h)
 - [轮盘](../src/ui/wheel_window.h)、[设置](../src/ui/settings_window.h)、[共享主题](../src/ui/theme.h)
 - [标注模型与撤销](../src/tools/annotation_document.h)、[独立屏幕标注](../src/tools/screen_annotation_session.h)、[贴图窗口](../src/tools/pinned_image.h)、[截图会话](../src/tools/screenshot_session.h)
+- [程序图标与快捷方式解析](../src/platform/program_icon.h)、[网站图标请求](../src/tools/website_icon.h)
 - [启动目标执行](../src/tools/launcher.h)、[动作图标](../src/ui/action_icons.h)、[图标来源](../src/ui/icons/SOURCE.md)
 - [应用装配](../src/app.cpp)、[启动入口](../src/main.cpp)
 - [固定依赖版本](../toolchain.json)、[构建与打包](../scripts/build.ps1)、[测试入口](../scripts/test.ps1)
