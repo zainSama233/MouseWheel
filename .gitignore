@@ -6,3 +6,18 @@ dist/
 __pycache__/
 aqtinstall.log
 artifacts/
+
+# Local configuration, credentials and agent-only instructions
+.env
+.env.*
+config.json
+config.json.lock
+.mousewheel/
+/AGENTS.MD
+/AGENTS.md
+/Agents.custome.md
+*.pem
+*.pfx
+*.key
+id_rsa
+id_ed25519

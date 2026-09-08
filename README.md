@@ -1,119 +1,53 @@
 # MouseWheel · 鼠标快捷强化
 
-按住鼠标中键，把应用、网页和桌面工具带到鼠标旁。
+**按住中键，把常用应用和桌面工具带到鼠标旁。**
 
-MouseWheel 是一个轻量常驻的快捷轮盘工具。通过单手操作打开常用应用、执行动作，也可以使用彼此独立的截图贴图和屏幕标注。设置即时保存，无需再点“完成”。
+[![Repository checks](https://github.com/zainSama233/MouseWheel/actions/workflows/repository.yml/badge.svg)](https://github.com/zainSama233/MouseWheel/actions/workflows/repository.yml)
+[![macOS build](https://github.com/zainSama233/MouseWheel/actions/workflows/macos.yml/badge.svg)](https://github.com/zainSama233/MouseWheel/actions/workflows/macos.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[下载与构建产物](https://github.com/zainSama233/MouseWheel/releases) · [详细功能](docs/product-design.md) · [验证记录](docs/validation.md) · [MIT 协议](LICENSE)
+[下载预览版](https://github.com/zainSama233/MouseWheel/releases/tag/v0.7.0) · [使用手册 / Wiki](docs/README.md) · [反馈问题](https://github.com/zainSama233/MouseWheel/issues) · [参与开发](CONTRIBUTING.md)
 
-## 功能一览
+MouseWheel 是一个单手操作的快捷轮盘：按住中键、移动选择、松开执行。把常用应用、网页、截图贴图和屏幕标注放进轮盘，少找几次窗口，少绕几次菜单。设置即时保存，复杂选项默认收进高级设置。
 
-- **单手轮盘**：默认按住中键呼出、移动选择、松开执行；支持 4 / 8 / 12 个槽位和两级轮盘。
-- **应用与网页**：启动应用、打开网址和文件夹；可从已安装应用或运行窗口中选择目标。
-- **常用动作**：快捷键、命令、系统控制及平台支持的窗口管理。
-- **截图贴图**：框选屏幕后生成置顶贴图，支持拖动、缩放、复制和保存。
-- **屏幕标注**：直接在桌面绘制画笔、箭头、矩形和文字；切换“操作桌面”后保留标注并放行鼠标。
-- **屏幕 OCR**：本地离线识别，也可自行配置 AI 或 HTTP 识别接口。
-- **应用专属方案**：为不同前台应用配置不同轮盘，未匹配时使用全局方案。
-- **图标与外观**：导入 SVG / PNG / ICO / JPG，共享图标库；四种轮盘形态、多套主题和实时预览。
-- **简洁设置**：动作、外观、通用设置分区；独立排版等精细选项放在默认关闭的高级设置中。
-- **四种语言**：简体中文、繁体中文、English、日本語。
+![MouseWheel 设置界面：左侧编辑动作，右侧直接预览轮盘](docs/images/settings.png)
 
-## 平台与下载
+## 能做什么
 
-| 平台 | 产物 | 状态 |
+- **一只手就够了**：4 / 8 / 12 个槽位，支持两级轮盘，也能为不同应用切换专属方案。
+- **把常用入口放在一起**：应用、网页、文件夹、快捷键、命令和平台支持的窗口、系统动作。
+- **截图和标注各做各的**：截图可以贴在桌面参考；屏幕标注能直接在桌面画线、箭头、形状和文字。
+- **按自己的习惯摆放**：紧凑扇区、悬浮圆形、胶囊、蜂巢四种形态；导入 SVG / PNG / ICO / JPG，拖拽调整位置。
+- **日常够用，细节可选**：主题、OCR、全屏暂停、应用排除和四种界面语言；精细排版需要时再打开。
+
+## 下载与上手
+
+当前版本是 **0.7.0 预览版**。无需自行编译：
+
+| 系统 | 下载 | 说明 |
 | --- | --- | --- |
-| Windows 10 1809+ / Windows 11 x64 | `MouseWheel-Portable.exe` | 免安装；Windows 10 已实测，Windows 11 专项验收见验证记录 |
-| Windows 目录版 | `MouseWheel-windows-x64.zip` | 完整解压后运行，可直接查看依赖文件 |
-| macOS 12+，Apple 芯片与 Intel | `MouseWheel-macos-universal.zip` | 实验性适配，构建与实际桌面验收状态见验证记录 |
+| Windows 10 1809+ / Windows 11 x64 | [单 EXE 便携版](https://github.com/zainSama233/MouseWheel/releases/download/v0.7.0/MouseWheel-Portable.exe) | 放到可写文件夹，双击运行 |
+| Windows 目录版 | [ZIP 压缩包](https://github.com/zainSama233/MouseWheel/releases/download/v0.7.0/MouseWheel-windows-x64.zip) | 完整解压后运行 |
+| macOS 12+，Intel / Apple 芯片 | [通用应用包](https://github.com/zainSama233/MouseWheel/releases/download/v0.7.0/MouseWheel-macos-universal.zip) | 实验性适配，需授予系统权限 |
 
-尚未发布 Release 时，发布页可能没有下载项；已成功构建的 macOS 产物可在 [Actions](https://github.com/zainSama233/MouseWheel/actions) 对应运行的 Artifacts 中下载。私有仓库的下载需要账号具有访问权限。
+1. 打开设置，点击右侧轮盘的一个槽位，选好动作。
+2. 填入应用或网址，也可以直接选择截图贴图、屏幕标注。
+3. **关闭设置窗口**，按住中键，移到目标后松开。
 
-### Windows：绿色免安装
+Windows 单 EXE 首次启动会在旁边生成隐藏的运行依赖目录；配置和导入图标也保存在本地。备份、更新、取消操作和两级轮盘用法见 [使用手册](docs/usage.md)。
 
-1. 下载 `MouseWheel-Portable.exe`，放到一个自己可以写入的文件夹。
-2. 双击运行。首次启动会自动准备内置依赖，不需要安装 Qt 或运行安装向导。
-3. 首次打开设置后，完成配置并关闭设置窗口；程序留在系统托盘。
-
-运行后文件夹中可能出现：
-
-| 文件 | 用途 |
-| --- | --- |
-| `config.json` | 动作、主题和方案配置 |
-| `icons/` | 导入的自定义图标 |
-| `.mousewheel/` | 隐藏的运行依赖目录，首次启动自动生成 |
-
-搬移或备份时保留 EXE、`config.json` 和 `icons/`；运行依赖可以重新生成。更新时先从托盘退出程序，再替换 EXE。移除程序时，退出后删除程序及上述目录即可，无需卸载器。
-
-ZIP 目录版需要完整解压，不能只取出其中的 `MouseWheel.exe`，也不要删除 DLL 或 `platforms` 目录。
-
-### macOS：应用包与权限
-
-1. 解压得到 `MouseWheel.app`，拖入“应用程序”文件夹后运行。
-2. 在系统设置的“隐私与安全性”中授予 **辅助功能** 权限；系统要求时也需允许 **输入监控**。
-3. 截图、屏幕 OCR 与吸色需要 **屏幕录制** 权限。按提示授权并重新启动程序。
-4. 程序在菜单栏常驻；授权后可使用“重新连接输入”。
-
-当前 macOS 包采用临时签名，尚未经过 Apple Developer ID 签名和公证，系统可能阻止首次打开；正式分发前仍需完成签名、公证及真实桌面验收。macOS 配置位于 `~/Library/Application Support/MouseWheel/`，不会写入应用包内部。
-
-Windows 的 CMD、WSL、外部窗口置顶／透明度及新建／关闭虚拟桌面不适用于 macOS。Mac 命令可选择 Zsh，PowerShell 需要自行安装；窗口、媒体和系统快捷操作也会受目标应用与系统快捷键设置影响。
-
-## 三分钟上手
-
-### 配置第一个应用或网页
-
-1. 在“动作配置”中选择“全局方案”。
-2. 点击右侧轮盘中的一个槽位，或展开“动作全览”选择槽位。
-3. 将动作选择为“打开应用”或“打开网址”，选择应用或填入完整网址。
-4. 按需填写名称、选择图标。有效输入会立即保存；未填完整时，底部会指出待填写内容。
-5. 关闭设置，按住中键，移到该槽位后松开。
-
-程序图标可自动获取；网页图标需要联网，失败时可重试或手动选图标。动作和图标独立，可以给任何动作使用自定义图片。
-
-### 轮盘如何取消、返回
-
-- 空槽位、轮盘外松开，或按 Esc：取消。
-- 主轮盘中心默认取消；启用“主中心动作”后，中心可以执行独立动作。
-- 子轮盘中心始终返回上一级。
-- 中键点击会被轮盘占用，滚轮滚动不受影响；在托盘暂停后恢复中键原功能。
-- **设置窗口打开时轮盘暂停**，关闭设置后恢复。
-
-### 创建两级轮盘
-
-在主轮盘中把一个槽位的动作设为“子轮盘”，点击“编辑子轮盘”配置里面的动作。使用时按住中键并移到分组槽位，悬停进入子轮盘，再移动到目标动作后松开。
-
-### 截图贴图与桌面标注
-
-两项功能可从托盘启动，也可放入轮盘槽位：
-
-- **截图贴图**：拖动框选区域，生成贴图；拖动贴图移动，滚轮缩放，通过贴图菜单复制、保存或关闭。
-- **屏幕标注**：进入桌面绘制模式，通过工具栏选择画笔、形状或文字。选择“操作桌面”可继续操作其他应用，标注仍保留；再次启动标注继续编辑，退出则清空。
-
-### 外观与应用专属方案
-
-- 在“轮盘外观”选择形态、配色和材质，右侧实时预览。
-- 预览中滚轮缩放、中键平移；点击槽位返回动作编辑，拖拽交换位置。
-- 开启右上角“高级设置”，再调整字体、图标大小、颜色、偏移和安全边距；关闭仅隐藏控件，不会清除设置。
-- 新建方案后绑定应用或运行窗口，进入该应用时自动使用对应方案。
-- 在“通用设置”中设置全屏暂停及排除名单，避免干扰特定应用。
-
-## 常见问题
-
-**按住中键没有反应？** 先关闭设置窗口，确认托盘未暂停、当前应用未被排除；尝试“重新连接输入”。Mac 还需检查权限。
-
-**提示程序已运行？** 从系统托盘或菜单栏打开现有实例的设置，不要重复启动。同一份配置同时只运行一个实例。
-
-**改动后为什么没有保存？** 查看设置页底部提示，补齐应用路径、网址等必填项；同时确认配置目录可写。其他有效改动仍会保存。
-
-**能否不联网使用？** 本地轮盘、应用启动、截图贴图、标注及本地 OCR 不需要云服务。网站图标、网页和远程 OCR 需要网络；AI / HTTP OCR 需自行配置接口。
-
-**跨平台配置可以直接复制吗？** 图标与通用设置可复用，但应用路径、系统动作和命令可能需要重新选择。
+Windows 10 已实测，Windows 11 仍待专项验收。macOS 已通过双架构构建和专项测试，真实鼠标、多屏、授权流程仍待实机验收，尚未完成 Developer ID 签名和公证。完整范围见 [验证记录](docs/validation.md)。
 
 ## 从源码构建
 
-使用 C++20、CMake 和 Qt 6。固定版本以 [toolchain.json](toolchain.json) 为准。
+```bash
+git clone https://github.com/zainSama233/MouseWheel.git
+cd MouseWheel
+```
 
-Windows 需要 Python 3.11+ 和 MSVC 工具链：
+项目使用 C++20、CMake 和 Qt 6，固定依赖版本见 [toolchain.json](toolchain.json)。
+
+**Windows**：准备 Python 3.11+，在 PowerShell 中运行。引导脚本会准备工具链，缺少 MSVC 时会启动 Build Tools 安装。
 
 ```powershell
 ./scripts/bootstrap.ps1
@@ -121,19 +55,33 @@ Windows 需要 Python 3.11+ 和 MSVC 工具链：
 ./tests/portable_tests.ps1
 ```
 
-macOS 需要 Xcode 命令行工具、CMake、Qt macOS SDK：
+**macOS**：准备 Xcode 命令行工具、CMake 和对应版本的 Qt macOS SDK。
 
 ```bash
 export QT_ROOT=/path/to/Qt/6.8.3/macos
 bash scripts/build-macos.sh
 ```
 
-构建输出在 `dist/`。测试入口与平台验证边界见 [验证记录](docs/validation.md)，代码入口见 [技术方案](docs/technical-plan.md)。桌面测试会操作鼠标、窗口和剪贴板，运行期间请勿同时操作键鼠。
+产物位于 `dist/`。开发入口、针对性测试和发布流程见 [贡献指南](CONTRIBUTING.md)。
 
-## 开源协议与致谢
+## 文档与参与
 
-本项目代码采用 **[MIT License](LICENSE)**：允许使用、修改、分发及商业使用，保留版权和许可声明即可。
+[文档 / Wiki](docs/README.md)统一放在源码仓库中，和代码一起维护。
 
-第三方组件保留各自协议，不因本项目采用 MIT 而改变：Qt 使用 LGPL / GPL 等上游许可，Lucide 图标保留上游许可。详情见 [第三方声明](licenses/NOTICE.md)。
+- 使用问题或功能建议：[提交 Issue](https://github.com/zainSama233/MouseWheel/issues)。
+- 修复或新功能：[贡献指南](CONTRIBUTING.md)。
+- 维护与发布：[维护指南](docs/maintaining.md)。
+- 涉及敏感信息的问题：[安全反馈](SECURITY.md)。
 
-轮盘和配置交互参考 [StarPie](https://github.com/SoftBlack42/StarPie)，屏幕标注体验参考 [MarkerOn](https://github.com/ifer47/markeron)。感谢这些项目提供的设计思路。
+## Contributors
+
+感谢一起把 MouseWheel 做得更好的人：
+
+- [zainSama233](https://github.com/zainSama233)
+- [Xinxn](https://github.com/XinxinTree)
+
+## License 与致谢
+
+项目采用 [MIT License](LICENSE)。第三方组件保留各自许可，详见 [第三方声明](licenses/NOTICE.md)。
+
+轮盘与配置交互参考 [StarPie](https://github.com/SoftBlack42/StarPie)，屏幕标注体验参考 [MarkerOn](https://github.com/ifer47/markeron)。感谢这些项目提供的思路。

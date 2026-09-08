@@ -62,3 +62,9 @@ Release 构建通过。便携启动验证移除开发工具 PATH，仅使用随�
 ## macOS 适配
 
 原生实现与双架构打包入口见 [技术方案](technical-plan.md)。2026-09-09：[macOS 验证运行](https://github.com/zainSama233/MouseWheel/actions/runs/34248176304) 通过 Intel / Apple 芯片双架构编译、macos 与 annotation 专项测试、依赖部署和临时签名校验；原生 Cocoa 浮层创建与输入穿透切换、应用图标与发现、配置及设置窗口测试见 [macOS 测试](../tests/macos_tests.cpp)。尚未验证真实鼠标触发、辅助功能授权、屏幕录制、多屏及全屏应用。macOS 包为实验性产物，未完成 Developer ID 签名与公证。
+
+## 仓库发布检查
+
+2026-09-09：Gitleaks 8.30.1 对公开准备前的全部 26 个历史提交及实际 Release ZIP 解包内容扫描，均未发现密钥；另检查全部 462 个历史文件对象，未发现私人配置、环境文件、无关媒体或个人路径。提交元数据中存在作者个人邮箱，历史作者与提交者邮箱统一替换为 GitHub noreply 地址，分支及发布标签同步重写。发布 EXE 与已验证本地产物 SHA-256 一致；后续发布仍需重新检查，扫描不能保证排除所有形式的敏感信息。
+
+仓库文件约束与本地文档链接由 [检查脚本](../scripts/check_repository.py) 验证，[对应测试](../tests/repository_tests.py) 覆盖禁止上传的文件、必要资源和缺失文档资源；[工作流](../.github/workflows/repository.yml) 在提交及 PR 时执行。README 截图来自使用临时配置的界面测试，不含用户配置。
