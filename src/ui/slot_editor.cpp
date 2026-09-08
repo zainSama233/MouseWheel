@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include "ui/slot_editor.h"
+#include "ui/content_stack.h"
 #include "ui/style_editor.h"
 #include "ui/application_picker.h"
 #include "ui/icon_library_dialog.h"
@@ -26,20 +27,11 @@
 #include <QSignalBlocker>
 #include <QMessageBox>
 namespace wheel {
-class ContentStack final:public QStackedWidget {
-public:
-    ContentStack() {
-        setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Maximum);
-        connect(this,&QStackedWidget::currentChanged,this,[this]{updateGeometry();});
-    }
-    QSize sizeHint() const override {return currentWidget()?currentWidget()->sizeHint():QSize{};}
-    QSize minimumSizeHint() const override {return currentWidget()?currentWidget()->minimumSizeHint():QSize{};}
-};
 SlotEditor::SlotEditor(int index,QWidget* parent):QWidget(parent) {
     setObjectName(QString("slot-editor-%1").arg(index));
     iconTimer_=new QTimer(this); iconTimer_->setSingleShot(true); iconTimer_->setInterval(350);
     connect(iconTimer_,&QTimer::timeout,this,&SlotEditor::refreshAutomaticIcon);
-    auto* root=new QVBoxLayout(this); root->setContentsMargins(0,0,0,0);
+    auto* root=new QVBoxLayout(this); root->setContentsMargins(0,0,0,0);root->setSpacing(16);
     auto* head=new QFormLayout; root->addLayout(head);
     const auto changed=[this]{if(!loading_) Q_EMIT edited();};
     const auto line=[&](QFormLayout* form,const QString& label,const QString& object=QString{}) {

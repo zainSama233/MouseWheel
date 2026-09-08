@@ -2,6 +2,7 @@
 #include <QTemporaryDir>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QToolButton>
 #include <QPushButton>
 #include <QLineEdit>
 #include <QListWidget>
@@ -22,6 +23,35 @@ class IterationTests:public QObject {
     Q_OBJECT
 private Q_SLOTS:
     void cleanup(){Localization::instance().setLanguage(Language::SimplifiedChinese);}
+    void taskNavigationPreservesDraftAndFocus() {
+        QTemporaryDir dir;ConfigStore store(dir.filePath("config.json"));QVERIFY(store.commit(defaultConfig()));
+        SettingsWindow settings(store);settings.show();QVERIFY(QTest::qWaitForWindowExposed(&settings));
+        auto* actions=settings.findChild<QPushButton*>("settings-actions");
+        auto* appearance=settings.findChild<QPushButton*>("settings-appearance");
+        auto* general=settings.findChild<QPushButton*>("settings-general");QVERIFY(actions);QVERIFY(appearance);QVERIFY(general);
+        auto* name=settings.findChild<QLineEdit*>("slot-name-0");auto* preview=settings.findChild<WheelWindow*>();
+        QVERIFY(name->isVisibleTo(&settings));QVERIFY(!settings.findChild<QComboBox*>("theme")->isVisibleTo(&settings));
+        settings.findChild<QComboBox*>("slot-kind-0")->setCurrentIndex(int(ActionKind::Application));name->setText("Draft app");
+        QTest::mouseClick(general,Qt::LeftButton);QVERIFY(!preview->isVisibleTo(&settings));
+        QVERIFY(settings.findChild<QComboBox*>("language")->isVisibleTo(&settings));
+        QTest::mouseClick(appearance,Qt::LeftButton);QVERIFY(preview->isVisibleTo(&settings));
+        QVERIFY(settings.findChild<QComboBox*>("theme")->isVisibleTo(&settings));
+        Q_EMIT preview->slotClicked(0);QVERIFY(actions->isChecked());QVERIFY(name->isVisibleTo(&settings));QCOMPARE(name->text(),QString("Draft app"));
+        settings.findChild<QToolButton*>("action-overview")->click();
+        auto* slots=settings.findChild<QListWidget*>("slot-list");QVERIFY(slots->isVisibleTo(&settings));
+        slots->setCurrentRow(1);QVERIFY(settings.findChild<SlotEditor*>("slot-editor-1")->isVisibleTo(&settings));
+        settings.findChild<QToolButton*>("action-overview")->click();
+        for(auto* page:{actions,appearance,general}) {
+            QTest::mouseClick(page,Qt::LeftButton);QTest::qWait(100);
+            QDir().mkpath("artifacts");QVERIFY(settings.grab().save("artifacts/"+page->objectName()+".png"));
+        }
+        settings.resize(900,640);QTest::mouseClick(actions,Qt::LeftButton);QTest::qWait(100);
+        QCOMPARE(settings.size(),QSize(900,640));QVERIFY(settings.grab().save("artifacts/settings-compact.png"));
+        for(auto language:{Language::TraditionalChinese,Language::English,Language::Japanese}) {
+            settings.findChild<QComboBox*>("language")->setCurrentIndex(int(language));QTest::qWait(50);
+            QVERIFY(actions->isVisibleTo(&settings));QVERIFY(settings.rect().contains(actions->mapTo(&settings,actions->rect().bottomRight())));
+        }
+    }
     void advancedSettingsPreserveValues() {
         QTemporaryDir dir;ConfigStore store(dir.filePath("config.json"));auto c=defaultConfig();
         c.style.iconSize=44;c.slots[0].style.fontSize=18;c.safetyMargin={24,32};QVERIFY(store.commit(c));
@@ -32,13 +62,15 @@ private Q_SLOTS:
         auto* margin=settings.findChild<QDoubleSpinBox*>("safe-margin-x");
         QVERIFY(!global->isVisibleTo(&settings));QVERIFY(!slot->isVisibleTo(&settings));QVERIFY(!margin->isVisibleTo(&settings));
         QSignalSpy changes(&store,&ConfigStore::changed);
-        advanced->click();QVERIFY(global->isVisibleTo(&settings));QVERIFY(slot->isVisibleTo(&settings));QVERIFY(margin->isVisibleTo(&settings));
+        advanced->click();QVERIFY(slot->isVisibleTo(&settings));
+        settings.findChild<QPushButton*>("settings-appearance")->click();QVERIFY(global->isVisibleTo(&settings));QVERIFY(margin->isVisibleTo(&settings));
         QCOMPARE(changes.count(),0);margin->setValue(48);QCOMPARE(store.current().safetyMargin.x(),48.0);
         const auto saved=store.current();changes.clear();advanced->click();QCOMPARE(changes.count(),0);QCOMPARE(store.current(),saved);
         for(auto* editor:settings.findChildren<SlotEditor*>())QVERIFY(editor->findChild<StyleEditor*>()->isHidden());
         settings.findChild<QComboBox*>("theme")->setCurrentIndex(int(Theme::Dark));
         QCOMPARE(store.current().style,c.style);QCOMPARE(store.current().slots[0].style,c.slots[0].style);
         QCOMPARE(store.current().safetyMargin,QPointF(48,32));
+        settings.findChild<QPushButton*>("settings-actions")->click();
         QTest::qWait(100);QDir().mkpath("artifacts");QVERIFY(settings.grab().save("artifacts/settings-basic.png"));
         advanced->click();settings.findChild<QComboBox*>("language")->setCurrentIndex(int(Language::English));
         QVERIFY(advanced->isChecked());QCOMPARE(advanced->text(),QString("Advanced settings"));

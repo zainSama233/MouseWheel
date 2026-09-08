@@ -67,6 +67,7 @@ private Q_SLOTS:
     void exclusionPickerSearchSaveAndRemove() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.commit(defaultConfig()));
         SettingsWindow settings(store); settings.show(); QVERIFY(QTest::qWaitForWindowExposed(&settings));
+        QTest::mouseClick(settings.findChild<QPushButton*>("settings-general"),Qt::LeftButton);
         QTest::mouseClick(settings.findChild<QPushButton*>("exclude-application"),Qt::LeftButton);
         auto* picker=settings.findChild<ApplicationPicker*>(); QVERIFY(picker);
         auto* results=picker->findChild<QListWidget*>("application-results");
