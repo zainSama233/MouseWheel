@@ -12,7 +12,9 @@ Windows 鼠标快捷键轮盘。首次运行打开设置，改动即时保存，
 
 ## 运行
 
-解压整个便携包后运行 `MouseWheel.exe`。保留随包的 DLL 与 `platforms` 目录；程序目录需要可写。
+Windows 推荐下载 `MouseWheel-Portable.exe`，放入可写目录后直接双击，无需安装。首次启动将内置依赖释放到同目录隐藏的 `.mousewheel` 文件夹；配置和图标仍保存在 EXE 旁，搬移时一起保留 `config.json` 与 `icons`。关闭程序后删除这些文件即可移除。
+
+也可使用 ZIP 目录版：解压整个便携包后运行 `MouseWheel.exe`，保留随包的 DLL 与 `platforms` 目录。
 
 ## 轮盘与启动
 
@@ -32,6 +34,7 @@ Windows 10 1809+／Windows 11 x64，Python 3.11+。依赖版本见 [toolchain.js
 ./scripts/test.ps1 -Pattern '^(actions|core|config|annotation|injection)$'
 ./scripts/test.ps1 -Pattern '^(ui|desktop|screenshot|screen_annotation|app|launcher|extended)$'
 ./scripts/build.ps1 -Package
+./tests/portable_tests.ps1
 ```
 
 桌面测试会暂时打开测试编辑器并操作鼠标、剪贴板；运行时请勿操作键鼠。测试结束恢复鼠标位置与原剪贴板内容。

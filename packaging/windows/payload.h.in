@@ -1,0 +1,2 @@
+#pragma once
+inline constexpr wchar_t PayloadId[]=L"@PAYLOAD_ID@";
