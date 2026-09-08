@@ -1,3 +1,4 @@
+#include "core/screen_helper.h"
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QComboBox>
@@ -122,7 +123,9 @@ private Q_SLOTS:
             QTest::mouseMove(preview,point(5)); QTest::mouseRelease(preview,Qt::LeftButton,Qt::NoModifier,point(5));
             QCOMPARE(store.current().slots[5],before.slots[2]); QCOMPARE(store.current().slots[2],before.slots[5]); QCOMPARE(list->currentRow(),5);
             before=store.current(); QTest::mousePress(preview,Qt::LeftButton,Qt::NoModifier,point(5));
-            QTest::mouseRelease(preview,Qt::LeftButton,Qt::NoModifier,QPoint(preview->width()/2,preview->height()/2)); QCOMPARE(store.current(),before);
+            QTest::mouseRelease(preview,Qt::LeftButton,Qt::NoModifier,QPoint(preview->width()/2,preview->height()/2));
+            QCOMPARE(store.current().center,before.slots[5]);QCOMPARE(store.current().slots[5],before.center);
+            Q_EMIT preview->slotsSwapped(-2,5);QCOMPARE(store.current(),before);
         }
         ConfigStore reopened(store.path()); QVERIFY(reopened.load()); QCOMPARE(reopened.current(),store.current());
         settings.findChild<QCheckBox*>("pause-fullscreen")->setChecked(true); QVERIFY(store.current().triggerRules.pauseFullscreen);
@@ -194,7 +197,7 @@ private Q_SLOTS:
         }
     }
     void animationStopsOnQuickDismiss() {
-        WheelWindow wheel; const auto geometry=Geometry::fit({500,500},{0,0,1920,1080},1);
+        WheelWindow wheel; const auto geometry=ScreenHelper::fit({500,500},{0,0,1920,1080},1);
         wheel.present(1,defaultConfig(),geometry,QApplication::primaryScreen()->name());
         auto* animation=wheel.findChild<QVariantAnimation*>(); QVERIFY(animation);
         QCOMPARE(animation->state(),QAbstractAnimation::Running);
@@ -243,9 +246,7 @@ private Q_SLOTS:
         SettingsWindow settings(store);
         settings.show();
         QVERIFY(QTest::qWaitForWindowExposed(&settings));
-        auto combos = settings.findChildren<QComboBox*>();
-        QVERIFY(combos.size()>12);
-        combos[2]->setCurrentIndex(2);
+        auto* theme=settings.findChild<QComboBox*>("theme");QVERIFY(theme);theme->setCurrentIndex(int(Theme::Dark));
         QCOMPARE(store.current().theme,Theme::Dark);
         QList<QLineEdit*> names;
         for (int i=0;i<8;++i) names.append(settings.findChild<QLineEdit*>(QString("slot-name-%1").arg(i)));

@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "tools/region_capture.h"
 #include <QPointer>
 
@@ -16,15 +17,19 @@
 namespace wheel {
 class RegionPicker final : public QDialog {
 public:
-    explicit RegionPicker(QScreen* screen,QImage image,Theme theme) : image_(std::move(image)),accent_(themeColors(theme).accent) {
-        setObjectName("region-picker"); setWindowTitle(QStringLiteral("框选屏幕"));
+    explicit RegionPicker(QScreen* screen,QImage image,Theme theme,RegionCapture::Mode mode) : mode_(mode),image_(std::move(image)),accent_(themeColors(theme).accent) {
+        setObjectName("region-picker"); setWindowTitle(QCoreApplication::translate("MouseWheel","框选屏幕"));
         setWindowFlags(Qt::Tool|Qt::FramelessWindowHint|Qt::WindowStaysOnTopHint);
         setScreen(screen); setGeometry(screen->geometry()); setCursor(Qt::CrossCursor);
-        auto* cancel=new QPushButton(QStringLiteral("取消框选"),this); cancel->move(16,16);
+        auto* cancel=new QPushButton(QCoreApplication::translate("MouseWheel","取消框选"),this); cancel->move(16,16);
         cancel->setStyleSheet(settingsStyle(theme));
         connect(cancel,&QPushButton::clicked,this,&QDialog::reject);
     }
     QImage selectedImage() const {
+        if(mode_==RegionCapture::Mode::Pixel) {
+            const QPoint pixel(qBound(0,int(origin_.x()*image_.width()/width()),image_.width()-1),qBound(0,int(origin_.y()*image_.height()/height()),image_.height()-1));
+            auto result=image_.copy(QRect(pixel,QSize(1,1)));result.setDevicePixelRatio(1);return result;
+        }
         const auto region=selection_.normalized();
         const double sx=double(image_.width())/width(), sy=double(image_.height())/height();
         const auto pixels=QRectF(region.x()*sx,region.y()*sy,region.width()*sx,region.height()*sy).toAlignedRect().intersected(image_.rect());
@@ -33,6 +38,7 @@ public:
 protected:
     void paintEvent(QPaintEvent*) override {
         QPainter p(this); p.drawImage(rect(),image_);
+        if(mode_==RegionCapture::Mode::Pixel)return;
         const auto selection=selection_.normalized().toAlignedRect().intersected(rect());
         const QRegion outside=QRegion(rect()).subtracted(QRegion(selection));
         p.setClipRegion(outside); p.fillRect(rect(),QColor(0,0,0,100)); p.setClipping(false);
@@ -51,10 +57,12 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override {
         if(event->button()!=Qt::LeftButton || !dragging_) return;
         mouseMoveEvent(event); dragging_=false;
+        if(mode_==RegionCapture::Mode::Pixel){accept();return;}
         const auto region=selection_.normalized();
         if(region.width()>=2 && region.height()>=2) accept();
     }
 private:
+    RegionCapture::Mode mode_;
     QImage image_;
     QColor accent_;
     QPointF origin_;
@@ -74,14 +82,14 @@ void RegionCapture::clearPickers() {
     const auto pickers=std::exchange(pickers_,{});
     for(auto* picker:pickers) { disconnect(picker,nullptr,this,nullptr); delete picker; }
 }
-bool RegionCapture::start(Theme theme,QString& error) {
+bool RegionCapture::start(Theme theme,QString& error,Mode mode) {
     error.clear(); if(active()) return false;
-    if(FAILED(DwmFlush())) { error=QStringLiteral("无法同步桌面画面，请重试。"); return false; }
+    if(FAILED(DwmFlush())) { error=QCoreApplication::translate("MouseWheel","无法同步桌面画面，请重试。"); return false; }
     const auto generation=++generation_;
     for(auto* screen:QGuiApplication::screens()) {
         const auto image=screen->grabWindow(0).toImage();
-        if(image.isNull()) { clearPickers(); error=QStringLiteral("无法读取屏幕画面。"); return false; }
-        auto* picker=new RegionPicker(screen,image,theme); pickers_.append(picker);
+        if(image.isNull()) { clearPickers(); error=QCoreApplication::translate("MouseWheel","无法读取屏幕画面。"); return false; }
+        auto* picker=new RegionPicker(screen,image,theme,mode); pickers_.append(picker);
         connect(screen,&QScreen::geometryChanged,picker,&QDialog::reject);
         connect(screen,&QObject::destroyed,picker,&QDialog::reject);
         connect(picker,&QDialog::finished,this,[this,picker,theme,generation](int result){

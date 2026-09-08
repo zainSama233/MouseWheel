@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "platform/desktop_actions.h"
 #include <vector>
 #include <algorithm>
@@ -6,7 +7,7 @@ bool executeDesktopAction(const Action& action,HWND target,const KeyState& physi
     if(const auto* a=std::get_if<SystemAction>(&action)) {
         Shortcut key;
         switch(a->operation) {
-        case SystemOperation::Lock: if(LockWorkStation()) return true; error=QStringLiteral("锁屏失败。"); return false;
+        case SystemOperation::Lock: if(LockWorkStation()) return true; error=QCoreApplication::translate("MouseWheel","锁屏失败。"); return false;
         case SystemOperation::VolumeUp: key.key=Qt::Key_VolumeUp; break;
         case SystemOperation::VolumeDown: key.key=Qt::Key_VolumeDown; break;
         case SystemOperation::Mute: key.key=Qt::Key_VolumeMute; break;
@@ -23,7 +24,7 @@ bool executeDesktopAction(const Action& action,HWND target,const KeyState& physi
         return sendShortcut(key,physical,error);
     }
     const auto* a=std::get_if<WindowAction>(&action);
-    if(!a || !IsWindow(target)) { error=QStringLiteral("目标窗口已关闭。"); return false; }
+    if(!a || !IsWindow(target)) { error=QCoreApplication::translate("MouseWheel","目标窗口已关闭。"); return false; }
     if(a->operation==WindowOperation::Switch) return sendShortcut({Qt::Key_Tab,bit(Modifier::Alt)},physical,error);
     bool ok=true;
     switch(a->operation) {
@@ -38,7 +39,7 @@ bool executeDesktopAction(const Action& action,HWND target,const KeyState& physi
     case WindowOperation::NextMonitor: {
         std::vector<HMONITOR> monitors;
         EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR m,HDC,LPRECT,LPARAM data)->BOOL { reinterpret_cast<std::vector<HMONITOR>*>(data)->push_back(m); return TRUE; },reinterpret_cast<LPARAM>(&monitors));
-        if(monitors.size()<2) { error=QStringLiteral("当前只有一个显示器。"); return false; }
+        if(monitors.size()<2) { error=QCoreApplication::translate("MouseWheel","当前只有一个显示器。"); return false; }
         auto current=MonitorFromWindow(target,MONITOR_DEFAULTTONEAREST);
         const auto it=std::find(monitors.begin(),monitors.end(),current);
         const auto next=monitors[(std::distance(monitors.begin(),it)+1)%monitors.size()];
@@ -61,6 +62,6 @@ bool executeDesktopAction(const Action& action,HWND target,const KeyState& physi
     case WindowOperation::Minimize: ShowWindow(target,SW_MINIMIZE); break;
     case WindowOperation::Switch: break;
     }
-    if(!ok) error=QStringLiteral("窗口操作失败（%1）。").arg(GetLastError()); return ok;
+    if(!ok) error=QCoreApplication::translate("MouseWheel","窗口操作失败（%1）。").arg(GetLastError()); return ok;
 }
 }

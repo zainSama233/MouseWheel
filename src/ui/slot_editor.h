@@ -4,6 +4,7 @@
 class QLabel; class QTimer; class QPushButton;
 class QLineEdit; class QComboBox; class QCheckBox; class QPlainTextEdit; class QSpinBox; class QStackedWidget;
 namespace wheel {
+class ConfigStore; class StyleEditor;
 class ShortcutEditor;
 class WebsiteIcon;
 class SlotEditor final:public QWidget {
@@ -13,11 +14,16 @@ public:
     void setSlot(const Slot& slot);
     Slot slot() const;
     void setGroupsAllowed(bool allowed);
+    void setStore(ConfigStore* store);
 Q_SIGNALS:
     void edited();
     void editGroup();
 private:
     void refreshAutomaticIcon();
+    ConfigStore* store_=nullptr;
+    QPushButton* libraryButton_;
+    QString libraryId_;
+    StyleEditor* styleEditor_;
     WebsiteIcon* websiteIcon_=nullptr;
     QTimer* iconTimer_;
     QLabel* iconStatus_;

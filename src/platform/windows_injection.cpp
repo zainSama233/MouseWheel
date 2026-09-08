@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "platform/windows_injection.h"
 #include <algorithm>
 namespace wheel::win {
@@ -77,14 +78,14 @@ std::vector<INPUT> recoveryPlan(const std::vector<INPUT>& plan, size_t sent, con
 bool sendShortcut(const Shortcut& shortcut, const KeyState& physical, QString& error) {
     auto plan = injectionPlan(shortcut, physical);
     if (plan.empty()) {
-        error = QStringLiteral("动作键仍被按住或不受支持，本次动作已取消。"); return false;
+        error = QCoreApplication::translate("MouseWheel","动作键仍被按住或不受支持，本次动作已取消。"); return false;
     }
     const UINT sent = SendInput(static_cast<UINT>(plan.size()), plan.data(), sizeof(INPUT));
     if (sent == plan.size()) return true;
     auto cleanup = recoveryPlan(plan, sent, physical);
     const auto cleaned = cleanup.empty() ? 0u : SendInput(static_cast<UINT>(cleanup.size()), cleanup.data(), sizeof(INPUT));
-    error = QStringLiteral("快捷键发送失败（%1/%2）。请检查目标应用权限。").arg(sent).arg(plan.size());
-    if (cleaned != cleanup.size()) error += QStringLiteral("输入恢复失败，请松开修饰键后重试。");
+    error = QCoreApplication::translate("MouseWheel","快捷键发送失败（%1/%2）。请检查目标应用权限。").arg(sent).arg(plan.size());
+    if (cleaned != cleanup.size()) error += QCoreApplication::translate("MouseWheel","输入恢复失败，请松开修饰键后重试。");
     return false;
 }
 }

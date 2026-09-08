@@ -11,7 +11,8 @@ public:
     explicit RegionCapture(QObject* parent=nullptr);
     ~RegionCapture() override;
     bool active() const;
-    bool start(Theme theme,QString& error);
+    enum class Mode { Region, Pixel };
+    bool start(Theme theme,QString& error,Mode mode=Mode::Region);
     void cancel();
 Q_SIGNALS:
     void activeChanged();

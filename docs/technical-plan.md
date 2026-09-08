@@ -6,6 +6,9 @@
 
 ## 实现入口
 
+- [工作区编解码](../src/config/workspace_codec.h)、[共享图标存储](../src/config/icon_library.cpp)、[图标缩略图](../src/ui/library_icon.h)
+- [配置方案](../src/ui/profile_panel.h)、[样式组件](../src/ui/style_editor.h)、[语言资源](../src/ui/locales/catalog.json)、[即时本地化](../src/ui/localization.h)
+- [屏幕边界与内容布局](../src/core/screen_helper.h)
 - [交互模型与几何](../src/core/model.h)、[状态机](../src/core/interaction.h)
 - [动作编解码](../src/config/action_codec.h)、[逐槽位编辑](../src/ui/slot_editor.h)、[快捷键编辑](../src/ui/shortcut_editor.h)、[独占捕获](../src/platform/shortcut_capture.h)
 - [共享屏幕框选](../src/tools/region_capture.h)、[OCR 会话](../src/tools/ocr_session.h)、[本地 OCR](../src/tools/local_ocr.h)、[窗口与系统操作](../src/platform/desktop_actions.h)
@@ -29,7 +32,7 @@
 | 界面 | Qt 6 Widgets；轮盘使用 QWidget + QPainter 自绘，Qt SVG 渲染图标 |
 | Windows | Win32 低级输入钩子、非激活窗口、SendInput |
 | macOS | Objective-C++ 桥接 AppKit / Core Graphics，使用非激活面板和事件接口 |
-| 配置 | Qt JSON + QSaveFile，本地单文件保存 |
+| 配置 | Qt JSON + QSaveFile，配置与相对图标资源目录 |
 | 构建与测试 | CMake、CTest、Qt Test；Windows 使用 MSVC，macOS 使用 Apple Clang |
 
 Qt 提供界面与通用基础设施，原生接口处理系统输入和窗口特性。首版采用单进程，不引入 WebView、脚本运行时、数据库、后台服务或插件系统。
@@ -70,7 +73,7 @@ Windows 在带消息循环的专用线程安装钩子；macOS 使用承载事件
 
 该策略须先用真实应用验证，重点覆盖 Alt／Win／Command 的系统副作用和执行期间的物理释放。若平台不能可靠满足立即执行语义，应回到产品层明确约束，不静默改为等待所有按键松开。Windows SendInput 不会自动重置现有键盘状态，且受目标进程完整性级别限制；注入成功也不等于应用已执行动作，见 [SendInput 文档](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)。
 
-部分注入失败时仅清理自身负责的未配对按键，不盲目重试完整动作。暂停、锁屏、睡眠和权限丢失统一终止活动会话；恢复时重新核对输入状态与监听有效性，不重放旧操作。空闲时不持续轮询。前台与窗口位置事件更新场景快照；低级鼠标钩子只读取快照，不扫描应用或读取进程路径。规则只决定新的按下是否触发，既有会话仍由状态机负责释放配对。
+部分注入失败时仅清理自身负责的未配对按键，不盲目重试完整动作。暂停、锁屏、睡眠和权限丢失统一终止活动会话；恢复时重新核对输入状态与监听有效性，不重放旧操作。空闲时不持续轮询。前台与窗口位置事件更新场景快照；低级鼠标钩子只读取快照与配置更新时计算的布局边界，不扫描应用、测量字体或读取进程路径。规则只决定新的按下是否触发，既有会话仍由状态机负责释放配对。
 
 ## 窗口与显示适配
 

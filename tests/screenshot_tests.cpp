@@ -10,12 +10,14 @@
 #include <QTemporaryDir>
 #include "tools/pinned_image.h"
 #include "tools/screenshot_session.h"
+#include "tools/region_capture.h"
 using namespace wheel;
 class ScreenshotTests final : public QObject {
     Q_OBJECT
     std::unique_ptr<QMimeData> original_;
 private Q_SLOTS:
     void initTestCase() {
+        qRegisterMetaType<QScreen*>();
         original_=std::make_unique<QMimeData>();
         const auto* data=QApplication::clipboard()->mimeData();
         for(const auto& format:data->formats()) original_->setData(format,data->data(format));
@@ -44,6 +46,18 @@ private Q_SLOTS:
         QVERIFY(!pin->savePng(dir.filePath("missing/pin.png"),error)); QVERIFY(!error.isEmpty());
         QDir().mkpath("artifacts"); QVERIFY(pin->grab().save(QString("artifacts/pinned-image-%1.png").arg(theme)));
         pin->close(); QTRY_VERIFY(pin.isNull());
+    }
+    void sampleRealScreenPixelAndCancel() {
+        QWidget background;background.setWindowFlags(Qt::Window|Qt::WindowStaysOnTopHint);background.setStyleSheet("background:#18764b;");background.resize(500,400);background.show();background.raise();
+        QVERIFY(QTest::qWaitForWindowExposed(&background));QTest::qWait(200);const auto point=background.mapToGlobal(QPoint(140,140));
+        const auto native=(point-background.screen()->geometry().topLeft())*background.screen()->devicePixelRatio();
+        QTRY_COMPARE_WITH_TIMEOUT(background.screen()->grabWindow(0).toImage().pixelColor(native),QColor("#18764b"),3000);
+        const QColor expected=background.screen()->grabWindow(0).toImage().pixelColor(native);
+        RegionCapture capture;QSignalSpy selected(&capture,&RegionCapture::selected);QString error;QVERIFY(capture.start(Theme::Light,error,RegionCapture::Mode::Pixel));
+        QWidget* picker=nullptr;for(auto* widget:QApplication::topLevelWidgets())if(widget->objectName()=="region-picker" && widget->screen()==background.screen())picker=widget;
+        QVERIFY(picker);QTest::mouseClick(picker,Qt::LeftButton,Qt::NoModifier,picker->mapFromGlobal(point));QTRY_VERIFY(!capture.active());QCOMPARE(selected.size(),1);
+        const auto pixel=qvariant_cast<QImage>(selected[0][0]);QCOMPARE(pixel.size(),QSize(1,1));QCOMPARE(pixel.pixelColor(0,0),expected);
+        QVERIFY(capture.start(Theme::Light,error,RegionCapture::Mode::Pixel));capture.cancel();QVERIFY(!capture.active());QCOMPARE(selected.size(),1);
     }
     void captureRealScreenAndCancel() {
         QWidget background; background.setWindowFlags(Qt::Window|Qt::WindowStaysOnTopHint);

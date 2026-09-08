@@ -1,3 +1,5 @@
+#include <QCoreApplication>
+#include "core/screen_helper.h"
 #include "platform/input_service.h"
 #include "platform/windows_injection.h"
 #include "platform/desktop_actions.h"
@@ -6,6 +8,7 @@
 #include "core/clock.h"
 #include <QThread>
 #include <QTimer>
+#include <QHash>
 #include <QMetaObject>
 #include <Windows.h>
 #include <shellscalingapi.h>
@@ -34,7 +37,7 @@ public:
         self_ = nullptr;
     }
     void start(Config config) {
-        config_ = std::move(config); self_ = this;
+        configure(std::move(config)); self_ = this;
         SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         const wchar_t* name = L"MouseWheelInputEvents";
         WNDCLASSW cls{}; cls.lpfnWndProc = windowProc;
@@ -50,7 +53,8 @@ public:
         install();
     }
     void configure(Config config) {
-        config_ = std::move(config);
+        config_ = std::move(config);defaultExtent_=ScreenHelper::extent(config_);extents_.clear();
+        for(const auto& profile:config_.profiles){const double extent=ScreenHelper::extent(profile.wheel);for(const auto& path:profile.applications)extents_.insert(executableIdentity(path),extent);}
         if(!contextAllows(GetForegroundWindow())) {pending_.reset(); publish(core_.cancel());}
     }
     void pause(bool paused) {
@@ -81,7 +85,6 @@ private:
     }
     bool contextAllows(HWND window) const {
         const auto& rules=config_.triggerRules;
-        if(!rules.pauseFullscreen && rules.excludedApplications.isEmpty()) return true;
         return window==foreground_ && rules.allows(executable_,fullscreen_);
     }
     void refreshPhysical() {
@@ -90,7 +93,7 @@ private:
     void install() {
         keyboard_.reset(); mouse_.reset();
         if (!notificationsReady_) {
-            Q_EMIT service_->failure(QStringLiteral("系统状态监听不可用，输入监听已停止。"));
+            Q_EMIT service_->failure(QCoreApplication::translate("MouseWheel","系统状态监听不可用，输入监听已停止。"));
             Q_EMIT service_->listening(false); return;
         }
         refreshPhysical();
@@ -104,7 +107,7 @@ private:
         const bool ok = keyboard_.value && mouse_.value;
         if (!ok) {
             keyboard_.reset(); mouse_.reset();
-            Q_EMIT service_->failure(QStringLiteral("全局输入监听启动失败（%1）。").arg(GetLastError()));
+            Q_EMIT service_->failure(QCoreApplication::translate("MouseWheel","全局输入监听启动失败（%1）。").arg(GetLastError()));
         }
         Q_EMIT service_->listening(ok);
     }
@@ -161,6 +164,8 @@ private:
                 if (down) {
                     const auto onset = monotonicNanos();
                     Geometry geometry;
+                    const HWND target=GetForegroundWindow();
+                    const Config resolved=self_->config_.resolved(self_->executable_);
                     const auto mods = win::modifiers(self_->physical_);
                     if (*button == self_->config_.button && mods == bit(self_->config_.modifier)) {
                         const auto monitor = MonitorFromPoint(event.pt,MONITOR_DEFAULTTONEAREST);
@@ -169,11 +174,10 @@ private:
                         UINT dx=96, dy=96;
                         GetDpiForMonitor(monitor,MDT_EFFECTIVE_DPI,&dx,&dy);
                         const auto& r = info.rcWork;
-                        geometry = Geometry::fit(point,{double(r.left),double(r.top),double(r.right-r.left),double(r.bottom-r.top)},dx/96.0);
+                        geometry = ScreenHelper::fit(point,{double(r.left),double(r.top),double(r.right-r.left),double(r.bottom-r.top)},dx/96.0,self_->extents_.value(executableIdentity(self_->executable_),self_->defaultExtent_),resolved.safetyMargin,resolved.edgePolicy);
                         self_->screen_ = QString::fromWCharArray(info.szDevice);
                     }
-                    const HWND target=GetForegroundWindow();
-                    decision = self_->core_.press(*button,mods,self_->config_,geometry,
+                    decision = self_->core_.press(*button,mods,resolved,geometry,
                                                  reinterpret_cast<quintptr>(target),self_->contextAllows(target));
                     if (decision.show) Q_EMIT self_->service_->triggered(decision.session,onset);
                 } else decision = self_->core_.release(*button,point);
@@ -228,6 +232,8 @@ private:
     HWND window_ = nullptr;
     Interaction core_;
     Config config_;
+    QHash<QString,double> extents_;
+    double defaultExtent_=WheelRadius;
     QString screen_;
     bool paused_ = false, locked_ = false, sleeping_ = false;
     bool notificationsReady_ = false;

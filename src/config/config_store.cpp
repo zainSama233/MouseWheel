@@ -1,12 +1,14 @@
+#include <QCoreApplication>
 #include "config/config_store.h"
 #include "config/action_codec.h"
+#include "config/workspace_codec.h"
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
 namespace wheel {
-constexpr qint64 MaxConfigBytes=1048576;
+constexpr qint64 MaxConfigBytes=16*1048576;
 ConfigStore::ConfigStore(QString path, QObject* parent) : QObject(parent), path_(std::move(path)) {}
 bool ConfigStore::load() {
     error_.clear();
@@ -15,10 +17,15 @@ bool ConfigStore::load() {
     if (!file.open(QIODevice::ReadOnly)) {
         error_ = file.errorString(); blocked_ = true; return false;
     }
-    if (file.size() > MaxConfigBytes) { error_ = QStringLiteral("配置文件过大。"); blocked_ = true; return false; }
+    if (file.size() > MaxConfigBytes) { error_ = QCoreApplication::translate("MouseWheel","配置文件过大。"); blocked_ = true; return false; }
     QJsonParseError parse;
     const auto doc = QJsonDocument::fromJson(file.readAll(), &parse);
     const auto obj = doc.object();
+    if(obj["version"].toInt(-1)==4) {
+        const auto decoded=decodeWorkspace(obj);
+        if(!decoded || parse.error!=QJsonParseError::NoError) {error_=QCoreApplication::translate("MouseWheel","配置损坏或版本不受支持。原文件已保留。");blocked_=true;return false;}
+        current_=*decoded;blocked_=false;return true;
+    }
     const auto slots = obj["slots"].toArray();
     Config candidate;
     candidate.modifier = static_cast<Modifier>(obj["modifier"].toInt(-1));
@@ -68,27 +75,21 @@ bool ConfigStore::load() {
         }
     }
     if (!valid || !validate(candidate).isEmpty()) {
-        error_ = QStringLiteral("配置损坏或版本不受支持。原文件已保留；请明确重置后使用。");
+        error_ = QCoreApplication::translate("MouseWheel","配置损坏或版本不受支持。原文件已保留；请明确重置后使用。");
         blocked_ = true; return false;
     }
     blocked_ = false; current_ = candidate;
     return true;
 }
 bool ConfigStore::commit(const Config& config) {
-    if (blocked_) { error_ = QStringLiteral("请先重置不可用的配置。"); return false; }
+    if (blocked_) { error_ = QCoreApplication::translate("MouseWheel","请先重置不可用的配置。"); return false; }
     error_ = validate(config);
     if (!error_.isEmpty()) return false;
-    QJsonArray slots;
-    for (const auto& slot : config.slots) slots.append(encodeSlot(slot));
-    QJsonObject obj{{"version",3}, {"modifier",static_cast<int>(config.modifier)},
-                    {"button",static_cast<int>(config.button)}, {"theme",static_cast<int>(config.theme)},
-                    {"slots",slots}, {"shape",static_cast<int>(config.shape)}, {"centerImage",QString::fromLatin1(config.centerImage.toBase64())}};
-    obj["triggerRules"]=QJsonObject{{"pauseFullscreen",config.triggerRules.pauseFullscreen},
-        {"excludedApplications",QJsonArray::fromStringList(config.triggerRules.excludedApplications)}};
+    const auto obj=encodeWorkspace(config);
     QSaveFile file(path_);
     file.setDirectWriteFallback(false);
     const auto data = QJsonDocument(obj).toJson();
-    if(data.size()>MaxConfigBytes) { error_=QStringLiteral("配置文件过大，请减少图片或命令内容。");return false; }
+    if(data.size()>MaxConfigBytes) { error_=QCoreApplication::translate("MouseWheel","配置文件过大，请减少图片或命令内容。");return false; }
     if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit()) {
         error_ = file.errorString(); return false;
     }

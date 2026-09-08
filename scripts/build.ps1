@@ -23,6 +23,6 @@ if ($Package) {
     Copy-Item "$root/docs" "$root/dist/MouseWheel/" -Recurse -Force
     foreach ($directory in @("src","tests","scripts")) { Copy-Item "$root/$directory" "$root/dist/MouseWheel/" -Recurse -Force }
     Copy-Item "$root/CMakeLists.txt" "$root/dist/MouseWheel/"
-    $contents = Get-ChildItem "$root/dist/MouseWheel" | Where-Object Name -NotIn @("config.json","config.json.lock")
+    $contents = Get-ChildItem "$root/dist/MouseWheel" | Where-Object Name -NotIn @("config.json","config.json.lock","icons")
     Compress-Archive -Path $contents.FullName -DestinationPath "$root/dist/MouseWheel-windows-x64.zip" -Force
 }

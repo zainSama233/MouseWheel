@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "ui/shortcut_editor.h"
 #include <QKeySequenceEdit>
 #include <QComboBox>
@@ -12,13 +13,13 @@ ShortcutEditor::ShortcutEditor(QWidget* parent):QWidget(parent) {
     auto* layout=new QVBoxLayout(this); layout->setContentsMargins(0,0,0,0);
     sequence_=new QKeySequenceEdit; sequence_->setMaximumSequenceLength(1); sequence_->setFinishingKeyCombinations({}); layout->addWidget(sequence_);
     auto* row=new QHBoxLayout; key_=new QComboBox; key_->setEditable(true); key_->setInsertPolicy(QComboBox::NoInsert);
-    key_->addItem(QStringLiteral("搜索主按键"),0);
+    key_->addItem(QCoreApplication::translate("MouseWheel","搜索主按键"),0);
     for(int k=Qt::Key_0;k<=Qt::Key_Z;++k) if(supportedKey(k)) key_->addItem(shortcutText({k,0}),k);
     for(int k=Qt::Key_Escape;k<=Qt::Key_F24;++k) if(supportedKey(k)) key_->addItem(shortcutText({k,0}),k);
     key_->addItem("Break",int(Qt::Key_Cancel)); key_->addItem("Space",int(Qt::Key_Space)); key_->completer()->setFilterMode(Qt::MatchContains); key_->completer()->setCaseSensitivity(Qt::CaseInsensitive); row->addWidget(key_);
     const QStringList names{"Ctrl","Alt","Shift","Win"};
     for(int i=0;i<4;++i) { modifiers_[i]=new QCheckBox(names[i]); row->addWidget(modifiers_[i]); }
-    layout->addLayout(row); record_=new QPushButton(QStringLiteral("独占录入")); layout->addWidget(record_);
+    layout->addLayout(row); record_=new QPushButton(QCoreApplication::translate("MouseWheel","独占录入")); layout->addWidget(record_);
     const auto assemble=[this]{if(loading_) return; Shortcut s{key_->currentData().toInt(),0}; for(int i=0;i<4;++i) if(modifiers_[i]->isChecked()) s.modifiers|=1u<<i; setShortcut(s); Q_EMIT edited();};
     connect(key_,&QComboBox::activated,this,assemble);
     for(auto* box:modifiers_) connect(box,&QCheckBox::clicked,this,assemble);
@@ -27,8 +28,8 @@ ShortcutEditor::ShortcutEditor(QWidget* parent):QWidget(parent) {
         if(auto* capture=ShortcutCapture::active()) {capture->cancel();return;}
         auto* capture=new ShortcutCapture(this); capture_=capture;
         connect(capture,&ShortcutCapture::recorded,this,[this](Shortcut shortcut){setShortcut(shortcut);Q_EMIT edited();});
-        connect(capture,&ShortcutCapture::stopped,this,[this]{record_->setText(QStringLiteral("独占录入"));});
-        record_->setText(capture->start()?QStringLiteral("录入中 · 点击取消"):QStringLiteral("录入启动失败"));
+        connect(capture,&ShortcutCapture::stopped,this,[this]{record_->setText(QCoreApplication::translate("MouseWheel","独占录入"));});
+        record_->setText(capture->start()?QCoreApplication::translate("MouseWheel","录入中 · 点击取消"):QCoreApplication::translate("MouseWheel","录入启动失败"));
     });
 }
 Shortcut ShortcutEditor::shortcut() const {

@@ -1,7 +1,12 @@
 #include "ui/theme.h"
+#include <QGuiApplication>
+#include <QStyleHints>
 namespace wheel {
 ThemeColors themeColors(Theme theme) {
+    if(theme==Theme::System)theme=QGuiApplication::styleHints()->colorScheme()==Qt::ColorScheme::Dark?Theme::Dark:Theme::Light;
     switch(theme) {
+    case Theme::Morandi:return {"#e6e3de","#f0ece6","#555b58","#878c85","#8e9b91","#cbd4ca","#424d44"};
+    case Theme::Ocean:return {"#e9f2f4","#f5fbfc","#234b59","#658b98","#217c96","#c5e7ee","#145367"};
     case Theme::Warm: return {"#f5efdf","#fff9ec","#393b2b","#72705f","#65804d","#e3edcf","#344821"};
     case Theme::Dark: return {"#151922","#222936","#edf2f9","#a3afc2","#9bb6ff","#344b77","#ffffff"};
     default: return {"#f4f6fa","#ffffff","#202b3c","#788496","#476dec","#e6edff","#244cbd"};

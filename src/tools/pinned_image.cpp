@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "tools/pinned_image.h"
 #include "ui/theme.h"
 #include <QToolBar>
@@ -16,18 +17,18 @@
 namespace wheel {
 PinnedImage::PinnedImage(QImage image,Theme theme) : image_(std::move(image)),toolbar_(new QToolBar(this)) {
     image_.setDevicePixelRatio(1);
-    setObjectName("pinned-image"); setWindowTitle(QStringLiteral("截图贴图"));
+    setObjectName("pinned-image"); setWindowTitle(QCoreApplication::translate("MouseWheel","截图贴图"));
     setWindowFlags(Qt::Tool|Qt::FramelessWindowHint|Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_DeleteOnClose); setStyleSheet(settingsStyle(theme));
-    auto* copy=toolbar_->addAction(QStringLiteral("复制")); copy->setObjectName("copy-image");
+    auto* copy=toolbar_->addAction(QCoreApplication::translate("MouseWheel","复制")); copy->setObjectName("copy-image");
     connect(copy,&QAction::triggered,this,[this]{QApplication::clipboard()->setImage(image_);});
-    toolbar_->addAction(QStringLiteral("保存 PNG"),this,[this]{
-        const auto path=QFileDialog::getSaveFileName(this,QStringLiteral("保存截图"),QStringLiteral("截图.png"),QStringLiteral("PNG 图片 (*.png)"));
+    toolbar_->addAction(QCoreApplication::translate("MouseWheel","保存 PNG"),this,[this]{
+        const auto path=QFileDialog::getSaveFileName(this,QCoreApplication::translate("MouseWheel","保存截图"),QCoreApplication::translate("MouseWheel","截图.png"),QCoreApplication::translate("MouseWheel","PNG 图片 (*.png)"));
         if(path.isEmpty()) return;
-        QString error; if(!savePng(path,error)) QMessageBox::warning(this,QStringLiteral("保存失败"),error);
+        QString error; if(!savePng(path,error)) QMessageBox::warning(this,QCoreApplication::translate("MouseWheel","保存失败"),error);
     });
-    toolbar_->addAction(QStringLiteral("关闭"),this,&QWidget::close);
-    setToolTip(QStringLiteral("拖动贴图 · 滚轮缩放"));
+    toolbar_->addAction(QCoreApplication::translate("MouseWheel","关闭"),this,&QWidget::close);
+    setToolTip(QCoreApplication::translate("MouseWheel","拖动贴图 · 滚轮缩放"));
     const auto available=screen()->availableGeometry().size();
     scale_=std::min({1.0/screen()->devicePixelRatio(),double(available.width()-48)/image_.width(),double(available.height()-96)/image_.height()});
     resize(qMax(toolbar_->sizeHint().width(),qRound(image_.width()*scale_)),qRound(image_.height()*scale_)+toolbar_->sizeHint().height());

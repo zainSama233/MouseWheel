@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "tools/website_icon.h"
 #include "core/image_asset.h"
 #include <QNetworkReply>
@@ -12,7 +13,7 @@ void WebsiteIcon::cancel() {
 void WebsiteIcon::load(const QUrl& page) {
     cancel(); page_=page;
     if(!page.isValid() || page.host().isEmpty() || (page.scheme()!="https" && page.scheme()!="http")) {
-        Q_EMIT ready(page_,{},QStringLiteral("网址无效")); return;
+        Q_EMIT ready(page_,{},QCoreApplication::translate("MouseWheel","网址无效")); return;
     }
     request(page,true);
 }
@@ -47,7 +48,7 @@ void WebsiteIcon::request(const QUrl& url,bool page) {
             QByteArray png; QString error;
             if(importImageAsset(*bytes,png,error)) {Q_EMIT ready(page_,png,{});return;}
         }
-        if(candidates_.isEmpty()) Q_EMIT ready(page_,{},QStringLiteral("未找到网站图标，可重试或选择自定义图片"));
+        if(candidates_.isEmpty()) Q_EMIT ready(page_,{},QCoreApplication::translate("MouseWheel","未找到网站图标，可重试或选择自定义图片"));
         else request(candidates_.takeFirst(),false);
     });
 }

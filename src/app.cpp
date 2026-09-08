@@ -1,6 +1,8 @@
+#include <QCoreApplication>
 #include "app.h"
 #include "ui/settings_window.h"
 #include "ui/theme.h"
+#include "ui/localization.h"
 #include "tools/launcher.h"
 #include <QApplication>
 #include <QAction>
@@ -9,13 +11,14 @@
 #include <QFile>
 namespace wheel {
 App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_unique<QMenu>()) {
+    wheel_.setAssetDirectory(config_.assetDirectory());
     QPixmap icon(48,48); icon.fill(Qt::transparent);
     QPainter p(&icon); p.setRenderHint(QPainter::Antialiasing); p.setPen(Qt::NoPen);
     p.setBrush(QColor("#476dec")); p.drawEllipse(3,3,42,42);
     p.setBrush(Qt::white); p.drawEllipse(19,19,10,10);
     for (int i=0;i<8;++i) { p.save(); p.translate(24,24); p.rotate(i*45); p.drawRoundedRect(-2,-18,4,8,2,2); p.restore(); }
     p.end(); tray_.setIcon(QIcon(icon)); QApplication::setWindowIcon(QIcon(icon));
-    menu_->addAction(QStringLiteral("打开设置"),this,&App::openSettings);
+    menu_->addAction(QCoreApplication::translate("MouseWheel","打开设置"),this,&App::openSettings);
     menu_->addAction(actionKindName(ActionKind::Screenshot),this,&App::takeScreenshot);
     menu_->addAction(actionKindName(ActionKind::ScreenAnnotation),this,&App::annotateScreen);
     connect(&input_,&InputService::actionRequested,this,[this](const Slot& action){
@@ -23,19 +26,19 @@ App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_u
         else if(action.kind()==ActionKind::ScreenAnnotation) annotateScreen();
         else if(const auto* ocr=std::get_if<OcrAction>(&action.action)) {
             screenshot_.cancel(); annotation_.setDrawing(false); QString error;
-            if(!ocr_.start(*ocr,config_.current().theme,error)) tray_.showMessage(QStringLiteral("OCR 失败"),error,QSystemTrayIcon::Warning);
+            if(!ocr_.start(*ocr,config_.current().theme,error)) tray_.showMessage(QCoreApplication::translate("MouseWheel","OCR 失败"),error,QSystemTrayIcon::Warning);
         }
         else {
-            QString error; if(!launchTarget(action.action,error)) tray_.showMessage(QStringLiteral("打开失败"),error,QSystemTrayIcon::Warning);
+            QString error; if(!launchTarget(action.action,error)) tray_.showMessage(QCoreApplication::translate("MouseWheel","打开失败"),error,QSystemTrayIcon::Warning);
         }
     });
     connect(&annotation_,&ScreenAnnotationSession::stateChanged,this,&App::updateState);
     connect(&ocr_,&OcrSession::activeChanged,this,&App::updateState);
     connect(&screenshot_,&ScreenshotSession::activeChanged,this,&App::updateState);
-    pauseAction_ = menu_->addAction(QStringLiteral("暂停")); pauseAction_->setCheckable(true);
+    pauseAction_ = menu_->addAction(QCoreApplication::translate("MouseWheel","暂停")); pauseAction_->setCheckable(true);
     connect(pauseAction_,&QAction::toggled,this,[this](bool checked){ paused_ = checked; updateState(); });
-    menu_->addAction(QStringLiteral("重新连接输入"),&input_,&InputService::restart);
-    menu_->addSeparator(); menu_->addAction(QStringLiteral("退出"),qApp,&QCoreApplication::quit);
+    menu_->addAction(QCoreApplication::translate("MouseWheel","重新连接输入"),&input_,&InputService::restart);
+    menu_->addSeparator(); menu_->addAction(QCoreApplication::translate("MouseWheel","退出"),qApp,&QCoreApplication::quit);
     tray_.setContextMenu(menu_.get());
     connect(&tray_,&QSystemTrayIcon::activated,this,[this](auto reason){
         if (reason == QSystemTrayIcon::DoubleClick || reason == QSystemTrayIcon::Trigger) openSettings();
@@ -47,7 +50,7 @@ App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_u
     connect(&wheel_,&WheelWindow::hidden,&input_,&InputService::hidden);
     connect(&input_,&InputService::failure,this,[this](const QString& error){
         qWarning().noquote() << error;
-        tray_.showMessage(QStringLiteral("鼠标快捷强化"),error,QSystemTrayIcon::Warning);
+        tray_.showMessage(QCoreApplication::translate("MouseWheel","鼠标快捷强化"),error,QSystemTrayIcon::Warning);
     });
     connect(&input_,&InputService::listening,this,[this](bool available){
         available_ = available; updateState();
@@ -63,7 +66,9 @@ void App::start(bool showSettings) {
     const bool loaded = config_.load();
     if (loaded && !exists && !config_.commit(config_.current()))
         qWarning().noquote() << config_.error();
+    if(loaded && !config_.migrateIcons())qWarning().noquote()<<config_.error();
     tray_.show();
+    Localization::instance().setLanguage(config_.current().language);
     wheel_.preview(config_.current());
     input_.start(config_.current());
     updateState();
@@ -74,7 +79,7 @@ void App::takeScreenshot() {
     ocr_.cancel(); annotation_.setDrawing(false);
     QString error;
     if(!screenshot_.start(config_.current().theme,error) && !error.isEmpty())
-        tray_.showMessage(QStringLiteral("截图失败"),error,QSystemTrayIcon::Warning);
+        tray_.showMessage(QCoreApplication::translate("MouseWheel","截图失败"),error,QSystemTrayIcon::Warning);
 }
 void App::annotateScreen() {
     ocr_.cancel(); screenshot_.cancel(); annotation_.start(config_.current().theme);
@@ -88,11 +93,15 @@ void App::openSettings() {
     updateState(); settings_->showNormal(); settings_->raise(); settings_->activateWindow();
 }
 void App::updateState() {
+    Localization::instance().setLanguage(config_.current().language);
+    const auto actions=menu_->actions();
+    actions[0]->setText(QCoreApplication::translate("MouseWheel","打开设置"));actions[1]->setText(actionKindName(ActionKind::Screenshot));actions[2]->setText(actionKindName(ActionKind::ScreenAnnotation));
+    actions[4]->setText(QCoreApplication::translate("MouseWheel","重新连接输入"));actions.last()->setText(QCoreApplication::translate("MouseWheel","退出"));
     const bool paused = paused_ || settings_ || ocr_.active() || screenshot_.active() || annotation_.drawing() || config_.blocked();
     input_.pause(paused);
-    const QString state = !available_ ? QStringLiteral("输入不可用") :
-                          paused ? QStringLiteral("已暂停") : QStringLiteral("运行中");
-    tray_.setToolTip(QStringLiteral("鼠标快捷强化 · ") + state);
-    pauseAction_->setText(paused_ ? QStringLiteral("恢复") : QStringLiteral("暂停"));
+    const QString state = !available_ ? QCoreApplication::translate("MouseWheel","输入不可用") :
+                          paused ? QCoreApplication::translate("MouseWheel","已暂停") : QCoreApplication::translate("MouseWheel","运行中");
+    tray_.setToolTip(QCoreApplication::translate("MouseWheel","鼠标快捷强化 · ") + state);
+    pauseAction_->setText(paused_ ? QCoreApplication::translate("MouseWheel","恢复") : QCoreApplication::translate("MouseWheel","暂停"));
 }
 }

@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "core/model.h"
 #include <QDir>
 #include <QKeySequence>
@@ -7,6 +8,8 @@
 #include <QUrl>
 #include <QFileInfo>
 #include <QStringList>
+#include <QSet>
+#include <QRegularExpression>
 #include "core/image_asset.h"
 namespace wheel {
 GroupAction::GroupAction():slots(8) {}
@@ -14,17 +17,17 @@ bool GroupAction::operator==(const GroupAction&) const = default;
 bool supportedSlotCount(int count) { return count==4 || count==8 || count==12; }
 QString actionKindName(ActionKind kind) {
     switch(kind) {
-    case ActionKind::Shortcut: return QStringLiteral("快捷键");
-    case ActionKind::Screenshot: return QStringLiteral("截图贴图");
-    case ActionKind::ScreenAnnotation: return QStringLiteral("屏幕标注");
-    case ActionKind::Application: return QStringLiteral("打开应用");
-    case ActionKind::Website: return QStringLiteral("打开网址");
-    case ActionKind::Folder: return QStringLiteral("打开文件夹");
-    case ActionKind::Command: return QStringLiteral("运行命令");
-    case ActionKind::Ocr: return QStringLiteral("屏幕 OCR");
-    case ActionKind::Window: return QStringLiteral("窗口管理");
-    case ActionKind::Group: return QStringLiteral("子轮盘");
-    case ActionKind::System: return QStringLiteral("系统控制");
+    case ActionKind::Shortcut: return QCoreApplication::translate("MouseWheel","快捷键");
+    case ActionKind::Screenshot: return QCoreApplication::translate("MouseWheel","截图贴图");
+    case ActionKind::ScreenAnnotation: return QCoreApplication::translate("MouseWheel","屏幕标注");
+    case ActionKind::Application: return QCoreApplication::translate("MouseWheel","打开应用");
+    case ActionKind::Website: return QCoreApplication::translate("MouseWheel","打开网址");
+    case ActionKind::Folder: return QCoreApplication::translate("MouseWheel","打开文件夹");
+    case ActionKind::Command: return QCoreApplication::translate("MouseWheel","运行命令");
+    case ActionKind::Ocr: return QCoreApplication::translate("MouseWheel","屏幕 OCR");
+    case ActionKind::Window: return QCoreApplication::translate("MouseWheel","窗口管理");
+    case ActionKind::Group: return QCoreApplication::translate("MouseWheel","子轮盘");
+    case ActionKind::System: return QCoreApplication::translate("MouseWheel","系统控制");
     }
     return {};
 }
@@ -44,55 +47,126 @@ bool supportedKey(int key) {
            key == Qt::Key_PageDown || (key >= Qt::Key_Left && key <= Qt::Key_Down) ||
            key == Qt::Key_Escape || key == Qt::Key_Pause || key == Qt::Key_Cancel;
 }
+QString executableIdentity(const QString& path){return QDir::cleanPath(QDir::fromNativeSeparators(path)).toCaseFolded();}
 bool TriggerRules::allows(const QString& executable,bool fullscreen) const {
     if(pauseFullscreen && fullscreen) return false;
-    const auto path=QDir::cleanPath(QDir::fromNativeSeparators(executable));
+    const auto path=executableIdentity(executable);
     for(const auto& excluded:excludedApplications)
-        if(path.compare(QDir::cleanPath(QDir::fromNativeSeparators(excluded)),Qt::CaseInsensitive)==0) return false;
+        if(path==executableIdentity(excluded)) return false;
     return true;
 }
 QString validate(const Config& c) {
-    if(c.triggerRules.excludedApplications.size()>256) return QStringLiteral("暂停应用最多为 256 个。");
+    if(c.triggerRules.excludedApplications.size()>256) return QCoreApplication::translate("MouseWheel","暂停应用最多为 256 个。");
     for(const auto& path:c.triggerRules.excludedApplications)
         if(path.isEmpty() || path.size()>32767 || path.contains(QChar::Null) || !QDir::isAbsolutePath(path) || !path.endsWith(".exe",Qt::CaseInsensitive))
-            return QStringLiteral("请选择暂停轮盘的应用程序（完整 EXE 路径）。");
+            return QCoreApplication::translate("MouseWheel","请选择暂停轮盘的应用程序（完整 EXE 路径）。");
     if (c.modifier != Modifier::None && c.modifier != Modifier::Control && c.modifier != Modifier::Alt &&
         c.modifier != Modifier::Shift && c.modifier != Modifier::Meta)
-        return QStringLiteral("请选择一个触发修饰键。");
+        return QCoreApplication::translate("MouseWheel","请选择一个触发修饰键。");
     if (c.button < MouseButton::Right || c.button > MouseButton::Forward ||
-        c.theme < Theme::Light || c.theme > Theme::Dark)
-        return QStringLiteral("配置包含不支持的选项。");
+        c.theme < Theme::Light || c.theme > Theme::Ocean)
+        return QCoreApplication::translate("MouseWheel","配置包含不支持的选项。");
     if (c.modifier == Modifier::None && c.button != MouseButton::Middle)
-        return QStringLiteral("单键触发使用鼠标中键。");
-    if(c.shape<WheelShape::Original || c.shape>WheelShape::Capsule) return QStringLiteral("不支持的槽位形状。");
-    if(!c.centerImage.isEmpty() && decodeImageAsset(c.centerImage).isNull()) return QStringLiteral("中心图片无效。");
-    if(!supportedSlotCount(c.slots.size())) return QStringLiteral("轮盘支持 4、8 或 12 个槽位。");
-    for(const auto& slot:c.slots) {
-        const auto error=validate(slot); if(!error.isEmpty()) return error;
+        return QCoreApplication::translate("MouseWheel","单键触发使用鼠标中键。");
+    if(c.language<Language::SimplifiedChinese || c.language>Language::Japanese) return QCoreApplication::translate("MouseWheel","语言无效。");
+    if(c.profiles.size()>64 || c.assets.size()>1024 || c.colors.size()>256) return QCoreApplication::translate("MouseWheel","配置条目过多。");
+    QSet<QString> ids,applications,assets;
+    for(const auto& profile:c.profiles) {
+        if(profile.id.isEmpty() || profile.id=="global" || ids.contains(profile.id) || profile.name.trimmed().isEmpty() || profile.name.size()>64) return QCoreApplication::translate("MouseWheel","方案名称或标识无效。");
+        ids.insert(profile.id);
+        const auto error=validate(profile.wheel);if(!error.isEmpty()) return error;
+        for(const auto& path:profile.applications) {
+            const auto normalized=executableIdentity(path);
+            if(!QDir::isAbsolutePath(path) || !path.endsWith(".exe",Qt::CaseInsensitive) || applications.contains(normalized)) return QCoreApplication::translate("MouseWheel","应用路径无效或重复绑定。");
+            applications.insert(normalized);
+        }
     }
+    static const QRegularExpression assetId("^[a-f0-9]{64}\\.(svg|png|ico|jpg)$");
+    for(const auto& asset:c.assets) {
+        if(!assetId.match(asset.id).hasMatch() || assets.contains(asset.id) || asset.name.trimmed().isEmpty() || asset.name.size()>64) return QCoreApplication::translate("MouseWheel","图标库条目无效。");
+        assets.insert(asset.id);
+    }
+    ids.clear();
+    for(const auto& color:c.colors) {
+        if(color.id.isEmpty() || ids.contains(color.id) || color.name.trimmed().isEmpty() || color.name.size()>64 || !color.color.isValid()) return QCoreApplication::translate("MouseWheel","颜色预设无效。");
+        ids.insert(color.id);
+    }
+    Config copy=c;bool missing=false;visitSlots(copy,[&](Slot& slot){if(slot.icon.source==IconSource::Library && !assets.contains(slot.icon.value)) missing=true;});
+    if(missing) return QCoreApplication::translate("MouseWheel","槽位引用的图标不存在。");
+    return validate(static_cast<const WheelConfig&>(c));
+}
+QString validate(const WheelConfig& c) {
+    if(c.theme<Theme::Light || c.theme>Theme::Ocean || c.shape<WheelShape::Original || c.shape>WheelShape::Capsule) return QCoreApplication::translate("MouseWheel","轮盘外观选项无效。");
+    if(!std::isfinite(c.deadZone) || c.deadZone<12 || c.deadZone>52 || c.center.kind()==ActionKind::Group) return QCoreApplication::translate("MouseWheel","中心动作或死区无效。");
+    if(!std::isfinite(c.safetyMargin.x()) || !std::isfinite(c.safetyMargin.y()) || c.safetyMargin.x()<0 || c.safetyMargin.y()<0 || c.safetyMargin.x()>300 || c.safetyMargin.y()>300 || c.edgePolicy<EdgePolicy::Translate || c.edgePolicy>EdgePolicy::Shrink) return QCoreApplication::translate("MouseWheel","屏幕安全边距无效。");
+    if(!c.centerImage.isEmpty() && decodeImageAsset(c.centerImage).isNull()) return QCoreApplication::translate("MouseWheel","中心图片无效。");
+    if(!supportedSlotCount(c.slots.size())) return QCoreApplication::translate("MouseWheel","轮盘支持 4、8 或 12 个槽位。");
+    auto error=validate(c.style);if(!error.isEmpty()) return error;
+    error=validate(c.center);if(!error.isEmpty()) return error;
+    for(const auto& slot:c.slots) {error=validate(slot);if(!error.isEmpty()) return error;}
     return {};
+}
+SlotStyle cascadeStyle(const SlotStyle& base,const SlotStyle& override) {
+    SlotStyle result=base;
+    if(override.fill)result.fill=override.fill;
+    if(override.glow)result.glow=override.glow;
+    if(override.border)result.border=override.border;
+    if(override.text)result.text=override.text;
+    if(override.fontFamily)result.fontFamily=override.fontFamily;
+    if(override.fontSize)result.fontSize=override.fontSize;
+    if(override.iconSize)result.iconSize=override.iconSize;
+    if(override.offsetX)result.offsetX=override.offsetX;
+    if(override.offsetY)result.offsetY=override.offsetY;
+    if(override.borderWidth)result.borderWidth=override.borderWidth;
+    if(override.glowRadius)result.glowRadius=override.glowRadius;
+    if(override.layout)result.layout=override.layout;
+    return result;
+}
+QString validate(const SlotStyle& s) {
+    for(const auto& color:{s.fill,s.glow,s.border,s.text}) if(color && !color->isValid()) return QCoreApplication::translate("MouseWheel","颜色无效。");
+    if(s.fontFamily && s.fontFamily->size()>128) return QCoreApplication::translate("MouseWheel","字体名称无效。");
+    if((s.fontSize && (*s.fontSize<8 || *s.fontSize>48)) || (s.iconSize && (*s.iconSize<12 || *s.iconSize>96))) return QCoreApplication::translate("MouseWheel","字体或图标尺寸无效。");
+    for(const auto& value:{s.offsetX,s.offsetY}) if(value && (!std::isfinite(*value) || std::abs(*value)>128)) return QCoreApplication::translate("MouseWheel","偏移超出范围。");
+    if(s.borderWidth && (!std::isfinite(*s.borderWidth) || *s.borderWidth<0 || *s.borderWidth>8)) return QCoreApplication::translate("MouseWheel","边框宽度无效。");
+    if(s.glowRadius && (!std::isfinite(*s.glowRadius) || *s.glowRadius<0 || *s.glowRadius>24)) return QCoreApplication::translate("MouseWheel","光晕尺寸无效。");
+    if(s.layout && (*s.layout<ContentLayout::Below || *s.layout>ContentLayout::IconOnly)) return QCoreApplication::translate("MouseWheel","图文布局无效。");
+    return {};
+}
+Config Config::resolved(const QString& executable) const {
+    Config result=*this;
+    const auto path=executableIdentity(executable);
+    for(const auto& profile:profiles) for(const auto& app:profile.applications)
+        if(path==executableIdentity(app)) {static_cast<WheelConfig&>(result)=profile.wheel;return result;}
+    return result;
+}
+void visitSlots(Config& c,const std::function<void(Slot&)>& visitor) {
+    const auto visitWheel=[&](WheelConfig& wheel){
+        visitor(wheel.center);
+        for(auto& slot:wheel.slots) {visitor(slot);if(auto* group=std::get_if<GroupAction>(&slot.action)) for(auto& child:group->slots) visitor(child);}
+    };
+    visitWheel(c);for(auto& profile:c.profiles) visitWheel(profile.wheel);
 }
 const QList<BuiltinIcon>& builtinIcons() {
     static const QList<BuiltinIcon> icons{
-        {"keyboard",QStringLiteral("键盘")},{"copy",QStringLiteral("复制")},{"clipboard-paste",QStringLiteral("粘贴")},
-        {"scissors",QStringLiteral("剪切")},{"undo-2",QStringLiteral("撤销")},{"redo-2",QStringLiteral("重做")},
-        {"scan",QStringLiteral("识别")},{"save",QStringLiteral("保存")},{"camera",QStringLiteral("截图")},
-        {"pencil",QStringLiteral("画笔")},{"globe",QStringLiteral("网页")},{"app-window",QStringLiteral("窗口")},
-        {"folder",QStringLiteral("文件夹")},{"terminal",QStringLiteral("终端")},{"settings",QStringLiteral("设置")},
-        {"lock-keyhole",QStringLiteral("锁屏")},
-        {"volume-2",QStringLiteral("音量增加")},
-        {"volume-1",QStringLiteral("音量降低")},
-        {"volume-x",QStringLiteral("静音")},
-        {"circle-play",QStringLiteral("播放／暂停")},
-        {"skip-forward",QStringLiteral("下一首")},
-        {"skip-back",QStringLiteral("上一首")},
-        {"panels-top-left",QStringLiteral("任务视图")},
-        {"panel-left-close",QStringLiteral("上一个虚拟桌面")},
-        {"panel-right-close",QStringLiteral("下一个虚拟桌面")},
-        {"square-plus",QStringLiteral("新建虚拟桌面")},
-        {"monitor-x",QStringLiteral("关闭虚拟桌面")},
-        {"monitor",QStringLiteral("显示桌面")},
-        {"x",QStringLiteral("取消")},{"plus",QStringLiteral("添加")}};
+        {"keyboard",QCoreApplication::translate("MouseWheel","键盘")},{"copy",QCoreApplication::translate("MouseWheel","复制")},{"clipboard-paste",QCoreApplication::translate("MouseWheel","粘贴")},
+        {"scissors",QCoreApplication::translate("MouseWheel","剪切")},{"undo-2",QCoreApplication::translate("MouseWheel","撤销")},{"redo-2",QCoreApplication::translate("MouseWheel","重做")},
+        {"scan",QCoreApplication::translate("MouseWheel","识别")},{"save",QCoreApplication::translate("MouseWheel","保存")},{"camera",QCoreApplication::translate("MouseWheel","截图")},
+        {"pencil",QCoreApplication::translate("MouseWheel","画笔")},{"globe",QCoreApplication::translate("MouseWheel","网页")},{"app-window",QCoreApplication::translate("MouseWheel","窗口")},
+        {"folder",QCoreApplication::translate("MouseWheel","文件夹")},{"terminal",QCoreApplication::translate("MouseWheel","终端")},{"settings",QCoreApplication::translate("MouseWheel","设置")},
+        {"lock-keyhole",QCoreApplication::translate("MouseWheel","锁屏")},
+        {"volume-2",QCoreApplication::translate("MouseWheel","音量增加")},
+        {"volume-1",QCoreApplication::translate("MouseWheel","音量降低")},
+        {"volume-x",QCoreApplication::translate("MouseWheel","静音")},
+        {"circle-play",QCoreApplication::translate("MouseWheel","播放／暂停")},
+        {"skip-forward",QCoreApplication::translate("MouseWheel","下一首")},
+        {"skip-back",QCoreApplication::translate("MouseWheel","上一首")},
+        {"panels-top-left",QCoreApplication::translate("MouseWheel","任务视图")},
+        {"panel-left-close",QCoreApplication::translate("MouseWheel","上一个虚拟桌面")},
+        {"panel-right-close",QCoreApplication::translate("MouseWheel","下一个虚拟桌面")},
+        {"square-plus",QCoreApplication::translate("MouseWheel","新建虚拟桌面")},
+        {"monitor-x",QCoreApplication::translate("MouseWheel","关闭虚拟桌面")},
+        {"monitor",QCoreApplication::translate("MouseWheel","显示桌面")},
+        {"x",QCoreApplication::translate("MouseWheel","取消")},{"plus",QCoreApplication::translate("MouseWheel","添加")}};
     return icons;
 }
 IconSpec suggestedIcon(const Action& action) {
@@ -139,13 +213,14 @@ IconSpec suggestedIcon(const Action& action) {
     return {IconSource::Builtin,name,{}};
 }
 QString validate(const Slot& slot) {
-    if(slot.name.size()>12 || (slot.enabled() && slot.name.trimmed().isEmpty())) return QStringLiteral("请填写最多 12 字的名称。");
-    if(slot.icon.source<IconSource::Builtin || slot.icon.source>IconSource::Automatic) return QStringLiteral("图标来源无效。");
-    if(slot.icon.source==IconSource::Automatic && !slot.icon.image.isEmpty() && decodeImageAsset(slot.icon.image).isNull()) return QStringLiteral("自动图标缓存无效。");
-    if(slot.icon.source==IconSource::Image && decodeImageAsset(slot.icon.image).isNull()) return QStringLiteral("槽位图片无效。");
-    if(slot.icon.source==IconSource::Program && !QFileInfo(slot.icon.value).isAbsolute()) return QStringLiteral("请选择图标来源程序。");
-    if(slot.icon.source==IconSource::Builtin && std::none_of(builtinIcons().begin(),builtinIcons().end(),[&](const auto& icon){return icon.id==slot.icon.value;})) return QStringLiteral("内置图标无效。");
-    if(!slot.enabled() && !slot.name.isEmpty()) return QStringLiteral("空槽位不能包含名称。");
+    const auto styleError=validate(slot.style);if(!styleError.isEmpty()) return styleError;
+    if(slot.name.size()>64 || (slot.enabled() && slot.name.trimmed().isEmpty())) return QCoreApplication::translate("MouseWheel","请填写最多 64 字的名称。");
+    if(slot.icon.source<IconSource::Builtin || slot.icon.source>IconSource::Library) return QCoreApplication::translate("MouseWheel","图标来源无效。");
+    if(slot.icon.source==IconSource::Automatic && !slot.icon.image.isEmpty() && decodeImageAsset(slot.icon.image).isNull()) return QCoreApplication::translate("MouseWheel","自动图标缓存无效。");
+    if(slot.icon.source==IconSource::Image && decodeImageAsset(slot.icon.image).isNull()) return QCoreApplication::translate("MouseWheel","槽位图片无效。");
+    if(slot.icon.source==IconSource::Program && !QFileInfo(slot.icon.value).isAbsolute()) return QCoreApplication::translate("MouseWheel","请选择图标来源程序。");
+    if(slot.icon.source==IconSource::Builtin && std::none_of(builtinIcons().begin(),builtinIcons().end(),[&](const auto& icon){return icon.id==slot.icon.value;})) return QCoreApplication::translate("MouseWheel","内置图标无效。");
+    if(!slot.enabled() && !slot.name.isEmpty()) return QCoreApplication::translate("MouseWheel","空槽位不能包含名称。");
     return validate(slot.action);
 }
 QString validate(const Action& action) {
@@ -153,27 +228,27 @@ QString validate(const Action& action) {
     return std::visit([&](const auto& a)->QString {
         using T=std::decay_t<decltype(a)>;
         if constexpr(std::is_same_v<T,GroupAction>) {
-            if(!supportedSlotCount(a.slots.size())) return QStringLiteral("子轮盘支持 4、8 或 12 个槽位。");
+            if(!supportedSlotCount(a.slots.size())) return QCoreApplication::translate("MouseWheel","子轮盘支持 4、8 或 12 个槽位。");
             for(const auto& child:a.slots) {
-                if(child.kind()==ActionKind::Group) return QStringLiteral("子轮盘不能再嵌套分组。");
+                if(child.kind()==ActionKind::Group) return QCoreApplication::translate("MouseWheel","子轮盘不能再嵌套分组。");
                 const auto error=validate(child); if(!error.isEmpty()) return error;
             }
         } else if constexpr(std::is_same_v<T,Shortcut>) {
-            if((!a.key && a.modifiers) || (a.key && (!supportedKey(a.key) || (a.modifiers&~15u)))) return QStringLiteral("快捷键无效。");
+            if((!a.key && a.modifiers) || (a.key && (!supportedKey(a.key) || (a.modifiers&~15u)))) return QCoreApplication::translate("MouseWheel","快捷键无效。");
         } else if constexpr(std::is_same_v<T,ApplicationAction>) {
-            if(!QFileInfo(a.path).isAbsolute() || a.path.size()>2048 || a.arguments.size()>8192 || (!a.directory.isEmpty() && !QFileInfo(a.directory).isAbsolute())) return QStringLiteral("请选择文件及有效工作目录。");
+            if(!QFileInfo(a.path).isAbsolute() || a.path.size()>2048 || a.arguments.size()>8192 || (!a.directory.isEmpty() && !QFileInfo(a.directory).isAbsolute())) return QCoreApplication::translate("MouseWheel","请选择文件及有效工作目录。");
         } else if constexpr(std::is_same_v<T,WebsiteAction>) {
-            if(!validUrl(a.url) || a.browser<Browser::Default || a.browser>Browser::Custom || (a.browser==Browser::Custom && !QFileInfo(a.executable).isAbsolute())) return QStringLiteral("请输入网页地址并选择浏览器。");
+            if(!validUrl(a.url) || a.browser<Browser::Default || a.browser>Browser::Custom || (a.browser==Browser::Custom && !QFileInfo(a.executable).isAbsolute())) return QCoreApplication::translate("MouseWheel","请输入网页地址并选择浏览器。");
         } else if constexpr(std::is_same_v<T,FolderAction>) {
-            if(a.location<FolderLocation::Path || a.location>FolderLocation::RecycleBin || (a.location==FolderLocation::Path && !QFileInfo(a.path).isAbsolute())) return QStringLiteral("请选择有效目录。");
+            if(a.location<FolderLocation::Path || a.location>FolderLocation::RecycleBin || (a.location==FolderLocation::Path && !QFileInfo(a.path).isAbsolute())) return QCoreApplication::translate("MouseWheel","请选择有效目录。");
         } else if constexpr(std::is_same_v<T,CommandAction>) {
-            if(a.shell<Shell::Cmd || a.shell>Shell::Wsl || a.script.trimmed().isEmpty() || a.script.size()>32768 || (!a.directory.isEmpty() && !QFileInfo(a.directory).isAbsolute())) return QStringLiteral("请输入命令及有效工作目录。");
+            if(a.shell<Shell::Cmd || a.shell>Shell::Wsl || a.script.trimmed().isEmpty() || a.script.size()>32768 || (!a.directory.isEmpty() && !QFileInfo(a.directory).isAbsolute())) return QCoreApplication::translate("MouseWheel","请输入命令及有效工作目录。");
         } else if constexpr(std::is_same_v<T,OcrAction>) {
-            if(a.provider<OcrProvider::Local || a.provider>OcrProvider::Http || (a.provider!=OcrProvider::Local && !validUrl(a.endpoint)) || (a.provider==OcrProvider::Ai && a.model.trimmed().isEmpty()) || (a.provider==OcrProvider::Http && a.resultPath.trimmed().isEmpty())) return QStringLiteral("请填写识别服务地址及模型／结果字段。");
+            if(a.provider<OcrProvider::Local || a.provider>OcrProvider::Http || (a.provider!=OcrProvider::Local && !validUrl(a.endpoint)) || (a.provider==OcrProvider::Ai && a.model.trimmed().isEmpty()) || (a.provider==OcrProvider::Http && a.resultPath.trimmed().isEmpty())) return QCoreApplication::translate("MouseWheel","请填写识别服务地址及模型／结果字段。");
         } else if constexpr(std::is_same_v<T,WindowAction>) {
-            if(a.operation<WindowOperation::Switch || a.operation>WindowOperation::Minimize || a.opacity<20 || a.opacity>100) return QStringLiteral("窗口操作或透明度无效。");
+            if(a.operation<WindowOperation::Switch || a.operation>WindowOperation::Minimize || a.opacity<20 || a.opacity>100) return QCoreApplication::translate("MouseWheel","窗口操作或透明度无效。");
         } else if constexpr(std::is_same_v<T,SystemAction>) {
-            if(a.operation<SystemOperation::Lock || a.operation>SystemOperation::ShowDesktop) return QStringLiteral("系统操作无效。");
+            if(a.operation<SystemOperation::Lock || a.operation>SystemOperation::ShowDesktop) return QCoreApplication::translate("MouseWheel","系统操作无效。");
         }
         return {};
     },action);
@@ -188,11 +263,6 @@ QKeySequence shortcutSequence(const Shortcut& s) {
     return QKeySequence(QKeyCombination(mods, static_cast<Qt::Key>(s.key)));
 }
 QString shortcutText(const Shortcut& s) {return shortcutSequence(s).toString(QKeySequence::NativeText);}
-Geometry Geometry::fit(QPointF p, QRectF area, double scale) {
-    const double r = std::min({WheelRadius * scale, area.width() / 2, area.height() / 2});
-    return {{std::clamp(p.x(), area.left()+r, area.right()-r),
-             std::clamp(p.y(), area.top()+r, area.bottom()-r)}, r};
-}
 QPointF slotCenter(int index,int count,WheelShape shape) {
     if(shape==WheelShape::HexagonHive) {
         static const std::array<QPointF,12> axial{{{1,-2},{2,-2},{2,-1},{2,0},{1,1},{0,2},{-1,2},{-2,2},{-2,1},{-2,0},{-1,-1},{0,-2}}};
@@ -239,7 +309,7 @@ const QPainterPath& slotPath(WheelShape shape,int index,int count) {
 }
 int Geometry::hit(QPointF position,WheelShape shape,int count) const {
     if(radius<=0) return -1;
-    const auto point=(position-center)*(WheelRadius/radius);
+    const auto point=(position-center)*(extent/radius);
     for(int index=0;index<count;++index) if(slotPath(shape,index,count).contains(point)) return index;
     return -1;
 }

@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "tools/screen_annotation_session.h"
 #include "ui/theme.h"
 #include <QApplication>
@@ -90,8 +91,8 @@ void ScreenAnnotationSession::start(Theme theme) {
         connect(overlay,&ScreenOverlay::textRequested,this,[this](Annotation annotation){
             if(textInput_ || !drawing()) return;
             auto* dialog=new QInputDialog(toolbar_); textInput_=dialog;
-            dialog->setWindowTitle(QStringLiteral("文字标注")); dialog->setLabelText(QStringLiteral("文字"));
-            dialog->setOkButtonText(QStringLiteral("确定")); dialog->setCancelButtonText(QStringLiteral("取消"));
+            dialog->setWindowTitle(QCoreApplication::translate("MouseWheel","文字标注")); dialog->setLabelText(QCoreApplication::translate("MouseWheel","文字"));
+            dialog->setOkButtonText(QCoreApplication::translate("MouseWheel","确定")); dialog->setCancelButtonText(QCoreApplication::translate("MouseWheel","取消"));
             dialog->setWindowFlag(Qt::WindowStaysOnTopHint);
             connect(dialog,&QDialog::finished,this,[this,dialog,annotation=std::move(annotation)](int result) mutable {
                 textInput_=nullptr;
@@ -108,7 +109,7 @@ void ScreenAnnotationSession::start(Theme theme) {
         overlay->show();
     }
     toolbar_=new QToolBar; toolbar_->setObjectName("screen-annotation-toolbar");
-    toolbar_->setWindowTitle(QStringLiteral("屏幕标注"));
+    toolbar_->setWindowTitle(QCoreApplication::translate("MouseWheel","屏幕标注"));
     toolbar_->setWindowFlags(Qt::Tool|Qt::WindowStaysOnTopHint|Qt::WindowTitleHint|Qt::WindowCloseButtonHint|Qt::CustomizeWindowHint);
     toolbar_->setStyleSheet(settingsStyle(theme)); toolbar_->installEventFilter(this);
     auto* group=new QActionGroup(toolbar_); group->setExclusive(true);
@@ -119,21 +120,21 @@ void ScreenAnnotationSession::start(Theme theme) {
         connect(action,&QAction::triggered,toolbar_,[style=style_,tool]{style->tool=tool;});
     }
     auto* colors=new QComboBox;
-    colors->addItems({QStringLiteral("红"),QStringLiteral("黄"),QStringLiteral("蓝"),QStringLiteral("白"),QStringLiteral("黑")});
+    colors->addItems({QCoreApplication::translate("MouseWheel","红"),QCoreApplication::translate("MouseWheel","黄"),QCoreApplication::translate("MouseWheel","蓝"),QCoreApplication::translate("MouseWheel","白"),QCoreApplication::translate("MouseWheel","黑")});
     toolbar_->addWidget(colors);
     connect(colors,&QComboBox::currentIndexChanged,toolbar_,[style=style_](int index){
         const QList<QColor> palette={Qt::red,Qt::yellow,Qt::blue,Qt::white,Qt::black}; style->color=palette[index];
     });
-    auto* widths=new QComboBox; widths->addItems({QStringLiteral("细"),QStringLiteral("中"),QStringLiteral("粗")}); widths->setCurrentIndex(1);
+    auto* widths=new QComboBox; widths->addItems({QCoreApplication::translate("MouseWheel","细"),QCoreApplication::translate("MouseWheel","中"),QCoreApplication::translate("MouseWheel","粗")}); widths->setCurrentIndex(1);
     toolbar_->addWidget(widths);
     connect(widths,&QComboBox::currentIndexChanged,toolbar_,[style=style_](int index){style->width=2<<index;});
     toolbar_->addSeparator();
-    toolbar_->addAction(document_->history().createUndoAction(toolbar_,QStringLiteral("撤销")));
-    toolbar_->addAction(document_->history().createRedoAction(toolbar_,QStringLiteral("重做")));
-    toolbar_->addAction(QStringLiteral("清空"),document_.get(),&AnnotationDocument::clear);
-    auto* mode=toolbar_->addAction(QStringLiteral("操作桌面")); mode->setObjectName("desktop-mode"); mode->setCheckable(true);
+    toolbar_->addAction(document_->history().createUndoAction(toolbar_,QCoreApplication::translate("MouseWheel","撤销")));
+    toolbar_->addAction(document_->history().createRedoAction(toolbar_,QCoreApplication::translate("MouseWheel","重做")));
+    toolbar_->addAction(QCoreApplication::translate("MouseWheel","清空"),document_.get(),&AnnotationDocument::clear);
+    auto* mode=toolbar_->addAction(QCoreApplication::translate("MouseWheel","操作桌面")); mode->setObjectName("desktop-mode"); mode->setCheckable(true);
     connect(mode,&QAction::toggled,this,[this](bool desktop){setDrawing(!desktop);});
-    auto* exit=toolbar_->addAction(QStringLiteral("退出")); exit->setObjectName("exit-annotation");
+    auto* exit=toolbar_->addAction(QCoreApplication::translate("MouseWheel","退出")); exit->setObjectName("exit-annotation");
     connect(exit,&QAction::triggered,this,&ScreenAnnotationSession::stop);
     toolbar_->adjustSize();
     auto* screen=QApplication::screenAt(QCursor::pos()); if(!screen) screen=QApplication::primaryScreen();
@@ -147,7 +148,7 @@ void ScreenAnnotationSession::setDrawing(bool drawing) {
     drawing_=drawing;
     for(auto* overlay:overlays_) { overlay->setDrawing(drawing); if(drawing) overlay->raise(); }
     auto* mode=toolbar_->findChild<QAction*>("desktop-mode"); const QSignalBlocker blocker(mode);
-    mode->setChecked(!drawing); mode->setText(drawing?QStringLiteral("操作桌面"):QStringLiteral("继续绘制"));
+    mode->setChecked(!drawing); mode->setText(drawing?QCoreApplication::translate("MouseWheel","操作桌面"):QCoreApplication::translate("MouseWheel","继续绘制"));
     if(drawing) {
         toolbar_->showNormal(); toolbar_->raise(); toolbar_->activateWindow();
         if(textInput_) { textInput_->raise(); textInput_->activateWindow(); }

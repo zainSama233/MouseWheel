@@ -1,3 +1,4 @@
+#include "core/screen_helper.h"
 #include <QtTest>
 #include "core/interaction.h"
 using namespace wheel;
@@ -8,10 +9,32 @@ class CoreTests : public QObject {
         return c;
     }
 private Q_SLOTS:
+    void rootCenterAndChildReturn() {
+        Config c=defaultConfig();c.centerEnabled=true;c.center={"Center",ScreenshotAction{}};c.deadZone=20;
+        Geometry g{{300,300},328,164};Interaction core;
+        core.press(MouseButton::Middle,0,c,g,1);
+        QVERIFY(core.release(MouseButton::Middle,g.center+QPointF(0,39)).action);
+        core.press(MouseButton::Middle,0,c,g,1);
+        QVERIFY(!core.release(MouseButton::Middle,g.center+QPointF(0,41)).action);
+        GroupAction group;group.slots[0]={"Child",ScreenshotAction{}};c.slots[0]={"Tools",group};
+        core.press(MouseButton::Middle,0,c,g,1);core.move(g.center+slotCenter(0)*2,100);core.advance(450);
+        QVERIFY(!core.release(MouseButton::Middle,g.center).action);
+        core.press(MouseButton::Middle,0,c,g,1);core.move(g.center+slotCenter(0)*2,100);core.advance(450);
+        QVERIFY(core.move(g.center,451).levelChanged);
+        QVERIFY(!core.release(MouseButton::Middle,g.center).action);
+    }
+    void safeMarginsAndCoordinateRoundTrip() {
+        const QRectF area(-1920,-1080,1920,1080);
+        for(auto policy:{EdgePolicy::Translate,EdgePolicy::Shrink}) {
+            const auto g=ScreenHelper::fit({-1919,-1079},area,1.5,220,{12,24},policy);
+            QVERIFY(area.adjusted(18,36,-18,-36).contains(QRectF(g.center-QPointF(g.radius,g.radius),QSizeF(g.radius*2,g.radius*2))));
+            const QPointF local(45,-100);QVERIFY(QLineF(ScreenHelper::toLocal(ScreenHelper::toNative(local,g),g),local).length()<.0001);
+        }
+    }
     void edgeLayoutsRemainOnScreen() {
         for(int count:{4,8,12}) for(auto shape:{WheelShape::Original,WheelShape::Circle,WheelShape::Capsule,WheelShape::HexagonHive})
             for(double scale:{1.,1.5,2.}) for(const QPointF point:{QPointF(-1919,1),QPointF(-1,1079)}) {
-                const QRectF screen(-1920,0,1920,1080);const auto g=Geometry::fit(point,screen,scale);
+                const QRectF screen(-1920,0,1920,1080);const auto g=ScreenHelper::fit(point,screen,scale);
                 QVERIFY(screen.contains(QRectF(g.center-QPointF(g.radius,g.radius),QSizeF(g.radius*2,g.radius*2))));
                 for(int i=0;i<count;++i) QCOMPARE(g.hit(g.center+slotCenter(i,count,shape)*(g.radius/WheelRadius),shape,count),i);
             }
@@ -66,7 +89,7 @@ private Q_SLOTS:
     }
     void shapedHitRegions() {
         for(auto shape:{WheelShape::Original,WheelShape::Circle,WheelShape::HexagonHive}) {
-            auto geometry=Geometry::fit({400,400},{0,0,1000,1000},1);
+            auto geometry=ScreenHelper::fit({400,400},{0,0,1000,1000},1);
             for(int index=0;index<8;++index) {
                 QCOMPARE(geometry.hit(geometry.center+slotCenter(index,8,shape),shape),index);
                 QVERIFY(slotPath(shape,index).contains(slotCenter(index,8,shape)));
@@ -93,7 +116,7 @@ private Q_SLOTS:
         auto config=defaultConfig();
         config.slots[0]={QStringLiteral("截图"),ScreenshotAction{}};
         QVERIFY(validate(config).isEmpty());
-        Interaction core; auto g=Geometry::fit({500,500},{0,0,1000,1000},1);
+        Interaction core; auto g=ScreenHelper::fit({500,500},{0,0,1000,1000},1);
         QVERIFY(core.press(MouseButton::Middle,0,config,g,1).show);
         auto result=core.release(MouseButton::Middle,g.center+QPointF(0,-100));
         QVERIFY(result.action); QCOMPARE(result.action->kind(),ActionKind::Screenshot);
@@ -104,7 +127,7 @@ private Q_SLOTS:
         QCOMPARE(c.button, MouseButton::Middle);
         QVERIFY(validate(c).isEmpty());
         Interaction core;
-        auto g = Geometry::fit({500,500}, {0,0,1920,1080}, 1);
+        auto g = ScreenHelper::fit({500,500}, {0,0,1920,1080}, 1);
         QVERIFY(!core.press(MouseButton::Right, 0, c, g, 1).consumed);
         QVERIFY(core.press(MouseButton::Middle, 0, c, g, 1).show);
         QVERIFY(core.release(MouseButton::Middle, g.center + QPointF(0,-100)).action);
@@ -116,7 +139,7 @@ private Q_SLOTS:
         QVERIFY(!core.press(MouseButton::Middle, 0, c, g, 1).consumed);
     }
     void geometry() {
-        auto g = Geometry::fit({2, 2}, {0, 0, 1920, 1080}, 1.5);
+        auto g = ScreenHelper::fit({2, 2}, {0, 0, 1920, 1080}, 1.5);
         QCOMPARE(g.center, QPointF(246, 246));
         QCOMPARE(g.hit(g.center), -1);
         QCOMPARE(g.hit(g.center + QPointF(0, -160)), 0);
@@ -124,7 +147,7 @@ private Q_SLOTS:
         QCOMPARE(g.hit(g.center + QPointF(0, 160)), 4);
         QCOMPARE(g.hit(g.center + QPointF(-160, 0)), 6);
         QCOMPARE(g.hit(g.center + QPointF(1000, 0)), -1);
-        auto tiny = Geometry::fit({0, 0}, {-100, -100, 120, 120}, 2);
+        auto tiny = ScreenHelper::fit({0, 0}, {-100, -100, 120, 120}, 2);
         QVERIFY(tiny.radius <= 60);
     }
     void normalInputPasses() {
@@ -137,7 +160,7 @@ private Q_SLOTS:
     void finalPositionAndSnapshot() {
         Interaction core;
         auto c = combinationConfig();
-        auto g = Geometry::fit({500,500}, {0,0,1920,1080}, 1);
+        auto g = ScreenHelper::fit({500,500}, {0,0,1920,1080}, 1);
         auto start = core.press(MouseButton::Right, bit(Modifier::Control), c, g, 123);
         QVERIFY(start.show);
         const auto id = start.session;
@@ -175,7 +198,7 @@ private Q_SLOTS:
     void emptyAndCenterCancel() {
         auto c = combinationConfig();
         c.slots[0] = {};
-        auto g = Geometry::fit({500,500}, {0,0,1000,1000}, 1);
+        auto g = ScreenHelper::fit({500,500}, {0,0,1000,1000}, 1);
         Interaction core;
         core.press(MouseButton::Right, bit(Modifier::Control), c, g, 1);
         QVERIFY(!core.release(MouseButton::Right, g.center + QPointF(0,-100)).action);

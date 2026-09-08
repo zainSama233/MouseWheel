@@ -1,5 +1,6 @@
 #include "config/action_codec.h"
 #include <QJsonArray>
+#include "config/workspace_codec.h"
 namespace wheel {
 QJsonObject encodeSlot(const Slot& slot) {
     QJsonObject data;
@@ -15,11 +16,15 @@ QJsonObject encodeSlot(const Slot& slot) {
         else if constexpr(std::is_same_v<T,WindowAction>) data={{"operation",int(a.operation)},{"opacity",a.opacity}};
         else if constexpr(std::is_same_v<T,SystemAction>) data={{"operation",int(a.operation)}};
     },slot.action);
-    return {{"name",slot.name},{"kind",int(slot.kind())},{"action",data},{"showLabel",slot.showLabel},
+    QJsonObject result{{"name",slot.name},{"kind",int(slot.kind())},{"action",data},{"showLabel",slot.showLabel},
         {"icon",QJsonObject{{"source",int(slot.icon.source)},{"value",slot.icon.value},{"image",QString::fromLatin1(slot.icon.image.toBase64())}}}};
+    if(slot.style!=SlotStyle{}) result["style"]=encodeStyle(slot.style);
+    return result;
 }
 std::optional<Slot> decodeSlot(const QJsonObject& obj,bool allowGroup) {
-    Slot slot; slot.name=obj["name"].toString(); const auto a=obj["action"].toObject();
+    Slot slot;
+    if(obj.contains("style")) {if(!obj["style"].isObject())return {};auto style=decodeStyle(obj["style"].toObject());if(!style)return {};slot.style=*style;}
+    slot.name=obj["name"].toString(); const auto a=obj["action"].toObject();
     switch(obj["kind"].toInt(-1)) {
     case 0: slot.action=Shortcut{a["key"].toInt(-1),unsigned(a["modifiers"].toInt(-1))}; break;
     case 1: slot.action=ScreenshotAction{}; break;

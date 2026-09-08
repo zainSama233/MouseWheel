@@ -124,6 +124,25 @@ private Q_SLOTS:
         QTRY_VERIFY(!ready.empty()); QVERIFY(ready.last()[0].toBool());
         activateEditor();
     }
+    void frostedBackdropUsesCapturedDesktop() {
+        activateEditor();const auto oldStyle=editor_.styleSheet();const auto restore=qScopeGuard([&]{editor_.setStyleSheet(oldStyle);});
+        editor_.setStyleSheet("QPlainTextEdit {background:#204c74;}");QTest::qWait(100);
+        auto c=defaultConfig();input_->configure(c);QTest::qWait(40);auto previous=shown_;mouse(true,true);QTRY_VERIFY(shown_>previous);QTest::qWait(150);const auto plain=wheel_->grab().toImage();mouse(false,true);
+        c.frosted=true;input_->configure(c);QTest::qWait(40);previous=shown_;mouse(true,true);QTRY_VERIFY(shown_>previous);QTest::qWait(150);const auto frosted=wheel_->grab().toImage();QCOMPARE(frosted.size(),plain.size());QVERIFY(frosted!=plain);
+        QDir().mkpath("artifacts");QVERIFY(frosted.save("artifacts/frosted-desktop.png"));mouse(false,true);QTRY_VERIFY(!wheel_->isVisible());
+    }
+    void foregroundProfileCenterAndExclusion() {
+        activateEditor();Config c=defaultConfig();Profile p;p.id="test";p.name="Test";p.applications={QCoreApplication::applicationFilePath()};
+        p.wheel.centerEnabled=true;p.wheel.center={"Center",AnnotationAction{}};p.wheel.deadZone=20;p.wheel.safetyMargin={20,30};p.wheel.theme=Theme::Ocean;c.profiles.append(p);
+        input_->configure(c);QTest::qWait(60);QSignalSpy shown(input_.get(),&InputService::showWheel),actions(input_.get(),&InputService::actionRequested);
+        mouse(true,true);QTRY_COMPARE(shown.size(),1);QCOMPARE(shown[0][1].value<Config>().theme,Theme::Ocean);
+        c.profiles[0].wheel.center={"Changed",ScreenshotAction{}};input_->configure(c);QTest::qWait(30);
+        movePointer(geometry_.center);mouse(false,true);QTRY_COMPARE(actions.size(),1);QCOMPARE(actions.last()[0].value<Slot>(),p.wheel.center);
+        c.triggerRules.excludedApplications=p.applications;input_->configure(c);QTest::qWait(50);const int down=middleDown_,up=middleUp_;
+        mouse(true,true);mouse(false,true);QCOMPARE(shown.size(),1);QTRY_COMPARE(middleDown_,down+1);QTRY_COMPARE(middleUp_,up+1);
+        c.triggerRules.excludedApplications.clear();c.profiles[0].applications={"C:/unmatched/app.exe"};input_->configure(c);QTest::qWait(50);
+        mouse(true,true);QTRY_COMPARE(shown.size(),2);QCOMPARE(shown.last()[1].value<Config>().theme,c.theme);movePointer(geometry_.center);mouse(false,true);QTest::qWait(50);QCOMPARE(actions.size(),1);
+    }
     void groupedHoverAndSafeRelease() {
         activateEditor();QSignalSpy levels(input_.get(),&InputService::levelChanged);QSignalSpy actions(input_.get(),&InputService::actionRequested);
         for(auto shape:{WheelShape::Original,WheelShape::Circle,WheelShape::Capsule,WheelShape::HexagonHive}) {

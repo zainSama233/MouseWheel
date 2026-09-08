@@ -39,7 +39,7 @@ private Q_SLOTS:
         const QJsonObject old{{"version",1},{"modifier",0},{"button",1},{"theme",0},{"slots",slots}};
         QVERIFY(file.open(QIODevice::WriteOnly));file.write(QJsonDocument(old).toJson());file.close();
         ConfigStore store(file.fileName());QVERIFY(store.load());QCOMPARE(store.current().slots[0].icon.value,QString("copy"));
-        QVERIFY(store.commit(store.current()));QVERIFY(file.open(QIODevice::ReadOnly));QCOMPARE(QJsonDocument::fromJson(file.readAll()).object()["version"].toInt(),3);
+        QVERIFY(store.commit(store.current()));QVERIFY(file.open(QIODevice::ReadOnly));QCOMPARE(QJsonDocument::fromJson(file.readAll()).object()["version"].toInt(),4);
     }
     void launcherAppearanceRoundTrip() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));

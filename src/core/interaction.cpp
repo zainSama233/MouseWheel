@@ -1,5 +1,6 @@
 #include "core/interaction.h"
 #include <QLineF>
+#include "core/screen_helper.h"
 namespace wheel {
 Decision Interaction::press(MouseButton b, Modifiers mods, const Config& c,
                             const Geometry& geometry, quintptr target, bool permitted) {
@@ -19,6 +20,9 @@ Decision Interaction::release(MouseButton b, QPointF position) {
     const int selected = geometry_.hit(position,snapshot_.shape,slots().size());
     if (navigationArmed_ && selected >= 0 && slots()[selected].enabled() && slots()[selected].kind()!=ActionKind::Group)
         result.action = slots()[selected];
+    if(navigationArmed_ && group_<0 && snapshot_.centerEnabled && snapshot_.center.enabled() &&
+       QLineF(ScreenHelper::toLocal(position,geometry_),{}).length()<snapshot_.deadZone)
+        result.action=snapshot_.center;
     active_ = false;hoverDeadline_=-1;
     return result;
 }
@@ -29,14 +33,15 @@ Decision Interaction::move(QPointF position,qint64 nowMs) {
     if (!active_) return {};
     position_=position;
     if(!navigationArmed_) {
-        if(QLineF(position,navigationOrigin_).length()<12*geometry_.radius/WheelRadius) return {};
+        if(QLineF(position,navigationOrigin_).length()<12*geometry_.radius/geometry_.extent) return {};
         navigationArmed_=true;
     }
-    if(group_>=0 && QLineF(position,geometry_.center).length()<CenterRadius*geometry_.radius/WheelRadius) {
+    if(group_>=0 && QLineF(position,geometry_.center).length()<CenterRadius*geometry_.radius/geometry_.extent) {
         group_=-1;selection_=-1;hoverDeadline_=-1;navigationArmed_=false;navigationOrigin_=position;
         return {.levelChanged=true,.session=session_};
     }
-    const auto selected = geometry_.hit(position,snapshot_.shape,slots().size());
+    const auto selected = group_<0 && snapshot_.centerEnabled && QLineF(ScreenHelper::toLocal(position,geometry_),{}).length()<snapshot_.deadZone
+        ? -2 : geometry_.hit(position,snapshot_.shape,slots().size());
     if (selected == selection_) return {};
     selection_ = selected;
     hoverDeadline_=group_<0 && selected>=0 && slots()[selected].kind()==ActionKind::Group?nowMs+350:-1;

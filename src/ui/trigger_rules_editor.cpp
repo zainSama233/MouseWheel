@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "ui/trigger_rules_editor.h"
 #include "ui/application_picker.h"
 #include <QVBoxLayout>
@@ -10,9 +11,9 @@
 namespace wheel {
 TriggerRulesEditor::TriggerRulesEditor(QWidget* parent):QWidget(parent) {
     auto* root=new QVBoxLayout(this); root->setContentsMargins(0,0,0,0);
-    auto* row=new QHBoxLayout; fullscreen_=new QCheckBox(QStringLiteral("全屏时暂停轮盘")); fullscreen_->setObjectName("pause-fullscreen");
-    auto* add=new QPushButton(QStringLiteral("添加暂停应用…")); add->setObjectName("exclude-application");
-    auto* remove=new QPushButton(QStringLiteral("移除")); remove->setObjectName("remove-excluded-application"); remove->setEnabled(false);
+    auto* row=new QHBoxLayout; fullscreen_=new QCheckBox(QCoreApplication::translate("MouseWheel","全屏时暂停轮盘")); fullscreen_->setObjectName("pause-fullscreen");
+    auto* add=new QPushButton(QCoreApplication::translate("MouseWheel","添加暂停应用…")); add->setObjectName("exclude-application");
+    auto* remove=new QPushButton(QCoreApplication::translate("MouseWheel","移除")); remove->setObjectName("remove-excluded-application"); remove->setEnabled(false);
     row->addWidget(fullscreen_); row->addStretch(); row->addWidget(add); row->addWidget(remove); root->addLayout(row);
     excluded_=new QListWidget; excluded_->setObjectName("excluded-applications"); excluded_->setMaximumHeight(90); excluded_->setFrameShape(QFrame::NoFrame); excluded_->hide(); root->addWidget(excluded_);
     connect(fullscreen_,&QCheckBox::toggled,this,[this]{if(!loading_) Q_EMIT edited();});

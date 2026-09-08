@@ -7,7 +7,7 @@ namespace wheel {
 class ApplicationPicker final:public QDialog {
     Q_OBJECT
 public:
-    enum class Purpose { Launch, Exclusion };
+    enum class Purpose { Launch, Exclusion, Binding };
     explicit ApplicationPicker(Purpose purpose,QWidget* parent=nullptr);
     ~ApplicationPicker() override;
 Q_SIGNALS:

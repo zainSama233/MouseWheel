@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "tools/launcher.h"
 #include <QDesktopServices>
 #include <QFileInfo>
@@ -17,9 +18,9 @@ namespace wheel {
 namespace {
 bool openFile(const QString& path,const QString& arguments,const QString& directory,bool normal,QString& error) {
     HANDLE token=nullptr; TOKEN_ELEVATION elevation{}; DWORD size=0;
-    if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token)) { error=QStringLiteral("无法读取启动权限。"); return false; }
+    if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token)) { error=QCoreApplication::translate("MouseWheel","无法读取启动权限。"); return false; }
     const auto tokenCleanup=qScopeGuard([&]{CloseHandle(token);});
-    if(!GetTokenInformation(token,TokenElevation,&elevation,sizeof(elevation),&size)) { error=QStringLiteral("无法读取启动权限。"); return false; }
+    if(!GetTokenInformation(token,TokenElevation,&elevation,sizeof(elevation),&size)) { error=QCoreApplication::translate("MouseWheel","无法读取启动权限。"); return false; }
     if(normal && elevation.TokenIsElevated) {
         const HRESULT initialized=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
         const auto cleanup=qScopeGuard([&]{if(SUCCEEDED(initialized)) CoUninitialize();});
@@ -44,14 +45,14 @@ bool openFile(const QString& path,const QString& arguments,const QString& direct
         dir.bstrVal=SysAllocString(reinterpret_cast<const wchar_t*>(directory.utf16())); verb.bstrVal=SysAllocString(L"open");
         if(SUCCEEDED(hr)) hr=shell->ShellExecute(file,args,dir,verb,show);
         SysFreeString(file); VariantClear(&args); VariantClear(&dir); VariantClear(&verb);
-        if(FAILED(hr)) { error=QStringLiteral("无法通过桌面以普通权限启动（%1）。").arg(quint32(hr),0,16); return false; }
+        if(FAILED(hr)) { error=QCoreApplication::translate("MouseWheel","无法通过桌面以普通权限启动（%1）。").arg(quint32(hr),0,16); return false; }
         return true;
     }
     SHELLEXECUTEINFOW info{}; info.cbSize=sizeof(info); info.fMask=SEE_MASK_FLAG_NO_UI;
     info.lpVerb=L"open"; info.lpFile=reinterpret_cast<LPCWSTR>(path.utf16());
     info.lpParameters=reinterpret_cast<LPCWSTR>(arguments.utf16());
     info.lpDirectory=directory.isEmpty()?nullptr:reinterpret_cast<LPCWSTR>(directory.utf16()); info.nShow=SW_SHOWNORMAL;
-    if(!ShellExecuteExW(&info)) { error=QStringLiteral("无法打开目标（%1）。").arg(GetLastError()); return false; }
+    if(!ShellExecuteExW(&info)) { error=QCoreApplication::translate("MouseWheel","无法打开目标（%1）。").arg(GetLastError()); return false; }
     return true;
 }
 }
@@ -59,7 +60,7 @@ bool launchTarget(const Action& action,QString& error) {
     error=validate(action); if(!error.isEmpty()) return false;
     if(const auto* a=std::get_if<ApplicationAction>(&action)) {
         const QFileInfo file(a->path);
-        if(!file.exists() || file.isDir()) { error=QStringLiteral("文件不存在，请重新选择。"); return false; }
+        if(!file.exists() || file.isDir()) { error=QCoreApplication::translate("MouseWheel","文件不存在，请重新选择。"); return false; }
         return openFile(file.absoluteFilePath(),a->arguments,a->directory.isEmpty()?file.absolutePath():a->directory,a->normalUser,error);
     }
     if(const auto* a=std::get_if<WebsiteAction>(&action)) {
@@ -77,7 +78,7 @@ bool launchTarget(const Action& action,QString& error) {
                 }
                 if(executable.isEmpty()) executable=QStandardPaths::findExecutable(name);
             }
-            if(!QFileInfo::exists(executable)) { error=QStringLiteral("未找到所选浏览器，可选择自定义浏览器路径。"); return false; }
+            if(!QFileInfo::exists(executable)) { error=QCoreApplication::translate("MouseWheel","未找到所选浏览器，可选择自定义浏览器路径。"); return false; }
             return openFile(executable,'"'+QString::fromLatin1(url.toEncoded())+'"',QFileInfo(executable).absolutePath(),true,error);
         }
     }
@@ -93,7 +94,7 @@ bool launchTarget(const Action& action,QString& error) {
         case FolderLocation::Computer: path="shell:MyComputerFolder"; break;
         case FolderLocation::RecycleBin: path="shell:RecycleBinFolder"; break;
         }
-        if(!path.startsWith("shell:") && !QFileInfo(path).isDir()) { error=QStringLiteral("文件夹不存在。"); return false; }
+        if(!path.startsWith("shell:") && !QFileInfo(path).isDir()) { error=QCoreApplication::translate("MouseWheel","文件夹不存在。"); return false; }
         return openFile(path,{},{},true,error);
     }
     if(const auto* a=std::get_if<CommandAction>(&action)) {
@@ -118,6 +119,6 @@ bool launchTarget(const Action& action,QString& error) {
         if(process.startDetached()) return true;
         error=process.errorString(); return false;
     }
-    error=QStringLiteral("无法打开该目标。"); return false;
+    error=QCoreApplication::translate("MouseWheel","无法打开该目标。"); return false;
 }
 }
