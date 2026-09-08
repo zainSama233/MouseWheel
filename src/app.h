@@ -6,6 +6,7 @@
 #include "platform/input_service.h"
 #include "ui/wheel_window.h"
 #include "tools/screenshot_session.h"
+#include "tools/ocr_session.h"
 #include "tools/screen_annotation_session.h"
 class QAction;
 class QMenu;
@@ -26,6 +27,7 @@ private:
     InputService input_;
     WheelWindow wheel_;
     ScreenshotSession screenshot_;
+    OcrSession ocr_;
     ScreenAnnotationSession annotation_;
     QSystemTrayIcon tray_;
     std::unique_ptr<QMenu> menu_;

@@ -19,13 +19,18 @@ App::App(QString configPath) : config_(std::move(configPath)), menu_(std::make_u
     menu_->addAction(actionKindName(ActionKind::Screenshot),this,&App::takeScreenshot);
     menu_->addAction(actionKindName(ActionKind::ScreenAnnotation),this,&App::annotateScreen);
     connect(&input_,&InputService::actionRequested,this,[this](const Slot& action){
-        if(action.kind==ActionKind::Screenshot) takeScreenshot();
-        else if(action.kind==ActionKind::ScreenAnnotation) annotateScreen();
+        if(action.kind()==ActionKind::Screenshot) takeScreenshot();
+        else if(action.kind()==ActionKind::ScreenAnnotation) annotateScreen();
+        else if(const auto* ocr=std::get_if<OcrAction>(&action.action)) {
+            screenshot_.cancel(); annotation_.setDrawing(false); QString error;
+            if(!ocr_.start(*ocr,config_.current().theme,error)) tray_.showMessage(QStringLiteral("OCR 失败"),error,QSystemTrayIcon::Warning);
+        }
         else {
-            QString error; if(!launchTarget(action,error)) tray_.showMessage(QStringLiteral("打开失败"),error,QSystemTrayIcon::Warning);
+            QString error; if(!launchTarget(action.action,error)) tray_.showMessage(QStringLiteral("打开失败"),error,QSystemTrayIcon::Warning);
         }
     });
     connect(&annotation_,&ScreenAnnotationSession::stateChanged,this,&App::updateState);
+    connect(&ocr_,&OcrSession::activeChanged,this,&App::updateState);
     connect(&screenshot_,&ScreenshotSession::activeChanged,this,&App::updateState);
     pauseAction_ = menu_->addAction(QStringLiteral("暂停")); pauseAction_->setCheckable(true);
     connect(pauseAction_,&QAction::toggled,this,[this](bool checked){ paused_ = checked; updateState(); });
@@ -65,16 +70,16 @@ void App::start(bool showSettings) {
 }
 void App::takeScreenshot() {
     if(screenshot_.active()) return;
-    annotation_.setDrawing(false);
+    ocr_.cancel(); annotation_.setDrawing(false);
     QString error;
     if(!screenshot_.start(config_.current().theme,error) && !error.isEmpty())
         tray_.showMessage(QStringLiteral("截图失败"),error,QSystemTrayIcon::Warning);
 }
 void App::annotateScreen() {
-    screenshot_.cancel(); annotation_.start(config_.current().theme);
+    ocr_.cancel(); screenshot_.cancel(); annotation_.start(config_.current().theme);
 }
 void App::openSettings() {
-    screenshot_.cancel(); annotation_.setDrawing(false);
+    ocr_.cancel(); screenshot_.cancel(); annotation_.setDrawing(false);
     if (!settings_) {
         settings_ = new SettingsWindow(config_);
         connect(settings_,&QObject::destroyed,this,[this]{ settings_ = nullptr; updateState(); });
@@ -82,7 +87,7 @@ void App::openSettings() {
     updateState(); settings_->showNormal(); settings_->raise(); settings_->activateWindow();
 }
 void App::updateState() {
-    const bool paused = paused_ || settings_ || screenshot_.active() || annotation_.drawing() || config_.blocked();
+    const bool paused = paused_ || settings_ || ocr_.active() || screenshot_.active() || annotation_.drawing() || config_.blocked();
     input_.pause(paused);
     const QString state = !available_ ? QStringLiteral("输入不可用") :
                           paused ? QStringLiteral("已暂停") : QStringLiteral("运行中");

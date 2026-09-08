@@ -1,4 +1,5 @@
 #include "ui/action_icons.h"
+#include "core/image_asset.h"
 #include <QSvgRenderer>
 #include <QFile>
 #include <QFileIconProvider>
@@ -13,31 +14,15 @@ QIcon symbolIcon(const QString& name,const QColor& color) {
     QPainter painter(&image); renderer.render(&painter); return QIcon(image);
 }
 QIcon actionIcon(const Slot& slot,const QColor& color) {
-    QString symbol="keyboard";
-    switch(slot.kind) {
-    case ActionKind::Screenshot: symbol="camera"; break;
-    case ActionKind::ScreenAnnotation: symbol="pencil"; break;
-    case ActionKind::Website: symbol="globe"; break;
-    case ActionKind::Application: {
-        QFileIconProvider provider; const auto icon=provider.icon(QFileInfo(slot.target));
-        if(!icon.isNull()) return icon;
-        symbol="app-window"; break;
+    if(!slot.enabled()) return symbolIcon("plus",color);
+    switch(slot.icon.source) {
+    case IconSource::Builtin: return symbolIcon(slot.icon.value,color);
+    case IconSource::Program: {
+        QFileIconProvider provider; const auto icon=provider.icon(QFileInfo(slot.icon.value));
+        return icon.isNull()?symbolIcon("app-window",color):icon;
     }
-    case ActionKind::Shortcut:
-        if(!slot.enabled()) symbol="plus";
-        else if(slot.shortcut.modifiers==bit(Modifier::Control)) {
-            switch(slot.shortcut.key) {
-            case Qt::Key_C: symbol="copy"; break;
-            case Qt::Key_V: symbol="clipboard-paste"; break;
-            case Qt::Key_X: symbol="scissors"; break;
-            case Qt::Key_Z: symbol="undo-2"; break;
-            case Qt::Key_Y: symbol="redo-2"; break;
-            case Qt::Key_A: symbol="scan"; break;
-            case Qt::Key_S: symbol="save"; break;
-            }
-        }
-        break;
+    case IconSource::Image: return QIcon(QPixmap::fromImage(decodeImageAsset(slot.icon.image)));
     }
-    return symbolIcon(symbol,color);
+    return {};
 }
 }

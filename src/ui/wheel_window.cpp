@@ -62,7 +62,7 @@ void WheelWindow::applyConfig(const Config& config) {
         selectedIcons_[i]=actionIcon(config.slots[i],colors.selectedText);
     }
     cancelIcon_=symbolIcon("x",colors.muted);
-    centerImage_=QPixmap::fromImage(decodeCenterImage(config.centerImage)); cached_=true;
+    centerImage_=QPixmap::fromImage(decodeImageAsset(config.centerImage)); cached_=true;
 }
 void WheelWindow::preview(const Config& config) { applyConfig(config); update(); }
 bool WheelWindow::nativeEvent(const QByteArray& type, void* message, qintptr* result) {
@@ -86,7 +86,7 @@ void WheelWindow::paintEvent(QPaintEvent*) {
         p.fillPath(path,selected?colors.selected:colors.surface);
         const auto center=slotCenter(i);
         const auto& slot=config_.slots[i];
-        const bool label=slot.enabled() && slot.kind!=ActionKind::Shortcut;
+        const bool label=slot.enabled() && slot.showLabel;
         const QRect iconArea(qRound(center.x()-15),qRound(center.y()-(label?24:15)),30,30);
         (selected?selectedIcons_[i]:icons_[i]).paint(&p,iconArea);
         if(label) {

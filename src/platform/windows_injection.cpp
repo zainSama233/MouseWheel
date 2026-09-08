@@ -13,6 +13,10 @@ WORD virtualKey(int key) {
     case Qt::Key_PageUp: return VK_PRIOR; case Qt::Key_PageDown: return VK_NEXT;
     case Qt::Key_Left: return VK_LEFT; case Qt::Key_Right: return VK_RIGHT;
     case Qt::Key_Up: return VK_UP; case Qt::Key_Down: return VK_DOWN;
+    case Qt::Key_Pause: return VK_PAUSE; case Qt::Key_Cancel: return VK_CANCEL;
+    case Qt::Key_VolumeUp: return VK_VOLUME_UP; case Qt::Key_VolumeDown: return VK_VOLUME_DOWN;
+    case Qt::Key_VolumeMute: return VK_VOLUME_MUTE; case Qt::Key_MediaTogglePlayPause: return VK_MEDIA_PLAY_PAUSE;
+    case Qt::Key_MediaNext: return VK_MEDIA_NEXT_TRACK; case Qt::Key_MediaPrevious: return VK_MEDIA_PREV_TRACK;
     case Qt::Key_Escape: return VK_ESCAPE; default: return 0;
     }
 }
@@ -26,7 +30,7 @@ INPUT keyEvent(WORD vk, bool down) {
     INPUT input{}; input.type = INPUT_KEYBOARD; input.ki.wVk = vk;
     input.ki.dwExtraInfo = injectionTag;
     if (!down) input.ki.dwFlags |= KEYEVENTF_KEYUP;
-    if (vk == VK_RCONTROL || vk == VK_RMENU || vk == VK_LWIN || vk == VK_RWIN ||
+    if (vk == VK_CANCEL || vk == VK_RCONTROL || vk == VK_RMENU || vk == VK_LWIN || vk == VK_RWIN ||
         (vk >= VK_PRIOR && vk <= VK_DOWN) || vk == VK_INSERT || vk == VK_DELETE)
         input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
     return input;

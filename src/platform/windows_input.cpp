@@ -1,5 +1,6 @@
 #include "platform/input_service.h"
 #include "platform/windows_injection.h"
+#include "platform/desktop_actions.h"
 #include "core/interaction.h"
 #include "core/clock.h"
 #include <QThread>
@@ -55,10 +56,12 @@ public:
         if (paused_ || locked_ || sleeping_ || core_.session() != session ||
             !IsWindow(reinterpret_cast<HWND>(pending.target)) ||
             GetForegroundWindow() != reinterpret_cast<HWND>(pending.target)) return;
-        if (pending.action->kind!=ActionKind::Shortcut) { Q_EMIT service_->actionRequested(*pending.action); return; }
+        if (pending.action->kind()!=ActionKind::Shortcut && pending.action->kind()!=ActionKind::Window && pending.action->kind()!=ActionKind::System) { Q_EMIT service_->actionRequested(*pending.action); return; }
         refreshPhysical();
         QString error;
-        if (!win::sendShortcut(pending.action->shortcut, physical_, error)) Q_EMIT service_->failure(error);
+        const auto* shortcut=std::get_if<Shortcut>(&pending.action->action);
+        const bool ok=shortcut?win::sendShortcut(*shortcut,physical_,error):win::executeDesktopAction(pending.action->action,reinterpret_cast<HWND>(pending.target),physical_,error);
+        if(!ok) Q_EMIT service_->failure(error);
     }
 private:
     void refreshPhysical() {

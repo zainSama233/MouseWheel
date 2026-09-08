@@ -7,7 +7,9 @@
 ## 实现入口
 
 - [交互模型与几何](../src/core/model.h)、[状态机](../src/core/interaction.h)
-- [配置存储](../src/config/config_store.h)、[中心图片导入与解码](../src/core/image_asset.h)
+- [动作编解码](../src/config/action_codec.h)、[逐槽位编辑](../src/ui/slot_editor.h)、[快捷键编辑](../src/ui/shortcut_editor.h)、[独占捕获](../src/platform/shortcut_capture.h)
+- [共享屏幕框选](../src/tools/region_capture.h)、[OCR 会话](../src/tools/ocr_session.h)、[本地 OCR](../src/tools/local_ocr.h)、[窗口与系统操作](../src/platform/desktop_actions.h)
+- [配置存储](../src/config/config_store.h)、[共享图片导入与解码](../src/core/image_asset.h)
 - [平台接口](../src/platform/input_service.h)、[Windows 输入线程](../src/platform/windows_input.cpp)、[注入计划](../src/platform/windows_injection.cpp)
 - [轮盘](../src/ui/wheel_window.h)、[设置](../src/ui/settings_window.h)、[共享主题](../src/ui/theme.h)
 - [标注模型与撤销](../src/tools/annotation_document.h)、[独立屏幕标注](../src/tools/screen_annotation_session.h)、[贴图窗口](../src/tools/pinned_image.h)、[截图会话](../src/tools/screenshot_session.h)
@@ -44,7 +46,7 @@ Qt 提供界面与通用基础设施，原生接口处理系统输入和窗口�
 | 界面 | 展示轮盘和设置，提交配置修改，不直接操作钩子或发送输入 |
 | 配置管理 | 唯一配置写入口，统一校验、持久化和发布有效配置 |
 
-交互核心不依赖 QWidget、Win32 或 AppKit。两端复用事件与动作类型，原生键码只在平台边界转换。槽位动作类型由交互模型统一定义；内置工具在轮盘隐藏确认后转交 UI 层，不经过键盘注入。快捷键使用结构化按键与修饰键表示，显示文本由其派生，不通过显示字符串驱动执行。
+交互核心不依赖 QWidget、Win32 或 AppKit。两端复用事件与动作类型，原生键码只在平台边界转换。独占捕获封装在平台层，录入组件关闭后仍配对消费已拦截按键的释放，再释放钩子。槽位使用强类型动作变体，动作参数不与图标混合。配置只写当前格式，旧配置在读取边界转换为同一模型。槽位动作类型由交互模型统一定义；内置工具在轮盘隐藏确认后转交 UI 层，不经过键盘注入。快捷键使用结构化按键与修饰键表示，显示文本由其派生，不通过显示字符串驱动执行。
 
 轮盘和设置样式从同一主题定义派生。设置草稿通过配置管理提交；活动轮盘持有触发时的配置快照，避免操作中途改变含义。
 
@@ -124,3 +126,9 @@ Windows 随包携带所需 Qt 插件和运行库，在未安装开发工具的�
 屏幕标注使用实时透明覆盖层，鼠标穿透遵循 [Windows layered window hit testing](https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features#layered-windows)。窗口焦点策略参考 [Windows 无激活窗口](https://devblogs.microsoft.com/oldnewthing/20240919-00/?p=110283)。文字输入使用 [QDialog 异步对话框](https://doc.qt.io/qt-6/qdialog.html#open)。浮动工具栏独立于覆盖层；状态与资源生命周期以 [屏幕标注会话](../src/tools/screen_annotation_session.cpp) 为准。产品交互参考 [MarkerOn](https://github.com/ifer47/markeron)。
 
 应用与网页启动遵循 [QProcess::startDetached](https://doc.qt.io/qt-6/qprocess.html#startDetached) 和 [QDesktopServices](https://doc.qt.io/qt-6/qdesktopservices.html)，参数与路径不拼接为 shell 命令。动作与完整目标在轮盘隐藏后统一分发；执行入口见上方索引。
+
+## 平台能力依据
+
+- 普通用户启动使用桌面 Shell，参考 [Microsoft 的桌面进程启动说明](https://devblogs.microsoft.com/oldnewthing/20131118-00/?p=2643)。
+- 本地识别使用 [Windows OCR](https://learn.microsoft.com/en-us/uwp/api/windows.media.ocr.ocrengine)，异步任务在工作线程执行。
+- 隐藏终端通过 [QProcess 原生创建参数](https://doc.qt.io/qt-6/qprocess-createprocessarguments.html) 设置；CMD 原生参数与普通程序参数分别遵循对应的解析规则。

@@ -65,3 +65,15 @@
 入口：[形状命中与间距取消](../tests/core_tests.cpp)、[图片和启动地址持久化](../tests/config_tests.cpp)、[外观与动画](../tests/ui_tests.cpp)、[原生动作完整分发](../tests/desktop_tests.cpp)、[实际应用与快捷方式启动](../tests/launcher_tests.cpp)。
 
 应用测试运行带中文、空格及特殊字符路径的真实测试程序，并通过 Windows Shell 创建和启动 `.lnk`。网页测试验证向 QDesktopServices 传递完整 URL，使用其测试处理器截取请求；尚未逐个验收浏览器的实际加载结果。前文跨平台与混合 DPI 验收边界仍适用。
+
+## 独立图标与完整动作体系
+
+2026-09-08：11 个受影响测试目标通过，Release 构建通过；便携包移除开发工具 PATH 后 smoke-test 退出码为 0，运行库依赖已核对。测试范围为 actions、core、config、injection、ui、launcher、extended、desktop、app、screen_annotation、screenshot。
+
+- [动作及外观持久化](../tests/action_tests.cpp)：所有动作类型、独立图片／矢量图标、类型错误拒绝；[配置测试](../tests/config_tests.cpp) 覆盖现有配置读取与当前格式保存。
+- [设置与录入](../tests/ui_tests.cpp)：图标跨动作保留、主键搜索、Pause／Break、原生独占录入、Tab 保存、编辑器隐藏／关闭时取消捕获和配对释放、设置释放与主题预览。
+- [真实执行](../tests/extended_tests.cpp)：程序及自定义浏览器参数、CMD／PowerShell 生成文件、临时目录打开与关闭、置顶切换、透明度、平铺；本地 OCR 实际识别图片文字。
+- OCR 网络测试连接本机 HTTP 服务，验证 HTTP 与 AI 请求、结果提取、失败和取消；未将屏幕内容发送给外部 AI 服务。
+- 原有中键触发、输入配对、截图贴图和独立屏幕标注的回归入口沿用前文。
+
+当前机器的 WSL 没有可运行的发行版环境，因此未标记 WSL 实际命令执行通过。外部模型服务、各浏览器实际加载、提升权限后的普通用户启动、多显示器迁移、物理 Pause／Break 键及系统锁屏／虚拟桌面的逐项实机验收仍需对应环境。macOS 原生后端与发布验收尚未完成。

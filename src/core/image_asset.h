@@ -2,6 +2,6 @@
 #include <QImage>
 #include <QString>
 namespace wheel {
-QImage decodeCenterImage(const QByteArray& png);
-bool importCenterImage(const QString& path,QByteArray& png,QString& error);
+QImage decodeImageAsset(const QByteArray& png);
+bool importImageAsset(const QString& path,QByteArray& png,QString& error);
 }

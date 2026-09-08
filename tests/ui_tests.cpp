@@ -1,6 +1,12 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QComboBox>
+#include <QPushButton>
+#include <Windows.h>
+#include "ui/slot_editor.h"
+#include "ui/shortcut_editor.h"
+#include "platform/windows_injection.h"
+#include "platform/shortcut_capture.h"
 #include <QLineEdit>
 #include <QKeySequenceEdit>
 #include <QLabel>
@@ -18,6 +24,40 @@ using namespace wheel;
 class UiTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void iconSurvivesActionChange() {
+        QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load()); SettingsWindow settings(store);
+        auto* symbol=settings.findChild<QComboBox*>("slot-symbol-2"); symbol->setCurrentIndex(symbol->findData("copy"));
+        auto* kind=settings.findChild<QComboBox*>("slot-kind-2"); kind->setCurrentIndex(int(ActionKind::Website));
+        auto* url=settings.findChild<QLineEdit*>("slot-target-2"); url->setText("https://example.com");QMetaObject::invokeMethod(url,"editingFinished");
+        QCOMPARE(store.current().slots[2].icon.value,QString("copy"));
+        kind->setCurrentIndex(int(ActionKind::Screenshot)); QCOMPARE(store.current().slots[2].icon.value,QString("copy"));
+        QVERIFY(store.current().slots[2].kind()==ActionKind::Screenshot);
+    }
+    void exclusiveCaptureAndPauseBreak() {
+        ShortcutEditor editor; editor.show(); editor.activateWindow();
+        QVERIFY(QTest::qWaitForWindowExposed(&editor)); SetForegroundWindow(reinterpret_cast<HWND>(editor.winId())); QTest::qWait(100);
+        QSignalSpy edited(&editor,&ShortcutEditor::edited);
+        auto* button=editor.findChild<QPushButton*>(); QVERIFY(button);QTest::mouseClick(button,Qt::LeftButton); edited.clear();
+        auto down=win::keyEvent(VK_LCONTROL,true),key=win::keyEvent('P',true),up=win::keyEvent('P',false),release=win::keyEvent(VK_LCONTROL,false);
+        INPUT events[]{down,key,up,release};for(auto& event:events)event.ki.dwExtraInfo=0;
+        QCOMPARE(SendInput(4,events,sizeof(INPUT)),4u); QTRY_COMPARE(edited.size(),1);
+        QCOMPARE(editor.shortcut(),(Shortcut{Qt::Key_P,bit(Modifier::Control)}));
+        auto* combo=editor.findChild<QComboBox*>(); QVERIFY(combo->findData(int(Qt::Key_Pause))>=0);QVERIFY(combo->findData(int(Qt::Key_Cancel))>=0);
+        QTest::mouseClick(button,Qt::LeftButton);QTest::mouseClick(button,Qt::LeftButton);QTest::qWait(50);QCOMPARE(edited.size(),1);
+        editor.setShortcut({Qt::Key_Cancel,0});QCOMPARE(editor.shortcut().key,int(Qt::Key_Cancel));
+        editor.setShortcut({Qt::Key_Pause,0});QCOMPARE(editor.shortcut().key,int(Qt::Key_Pause));
+    }
+    void closingRecorderDrainsHeldKeys() {
+        auto* editor=new ShortcutEditor;editor->show();editor->activateWindow();QVERIFY(QTest::qWaitForWindowExposed(editor));SetForegroundWindow(reinterpret_cast<HWND>(editor->winId()));QTest::qWait(100);
+        QTest::mouseClick(editor->findChild<QPushButton*>(),Qt::LeftButton);QVERIFY(ShortcutCapture::active());
+        auto down=win::keyEvent(VK_LCONTROL,true);down.ki.dwExtraInfo=0;QCOMPARE(SendInput(1,&down,sizeof(INPUT)),1u);QTest::qWait(50);
+        delete editor;auto up=win::keyEvent(VK_LCONTROL,false);up.ki.dwExtraInfo=0;QCOMPARE(SendInput(1,&up,sizeof(INPUT)),1u);
+        QTRY_VERIFY(!ShortcutCapture::active());
+    }
+    void hidingRecorderCancelsCapture() {
+        ShortcutEditor editor;editor.show();editor.activateWindow();QVERIFY(QTest::qWaitForWindowExposed(&editor));SetForegroundWindow(reinterpret_cast<HWND>(editor.winId()));QTest::qWait(100);
+        QTest::mouseClick(editor.findChild<QPushButton*>(),Qt::LeftButton);QVERIFY(ShortcutCapture::active());editor.hide();QTRY_VERIFY(!ShortcutCapture::active());
+    }
     void appearanceAndTargetPersist() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());
         SettingsWindow settings(store);
@@ -26,7 +66,7 @@ private Q_SLOTS:
         auto* kind=settings.findChild<QComboBox*>("slot-kind-2"); kind->setCurrentIndex(int(ActionKind::Website));
         auto* target=settings.findChild<QLineEdit*>("slot-target-2"); QVERIFY(target);
         target->setText("example.com/path?q=1"); QMetaObject::invokeMethod(target,"editingFinished");
-        QCOMPARE(store.current().slots[2].target,QString("https://example.com/path?q=1"));
+        QCOMPARE(std::get<WebsiteAction>(store.current().slots[2].action).url,QString("https://example.com/path?q=1"));
         ConfigStore reopened(store.path()); QVERIFY(reopened.load()); QCOMPARE(reopened.current(),store.current());
     }
     void importedImageAndShapePreviews() {
@@ -34,11 +74,11 @@ private Q_SLOTS:
         QImage source(180,120,QImage::Format_ARGB32); source.fill(QColor("#c44569"));
         { QPainter p(&source); p.setPen(QPen(Qt::white,12)); p.drawEllipse(30,15,120,90); }
         const auto path=dir.filePath("center.png"); QVERIFY(source.save(path));
-        auto config=defaultConfig(); QString error; QVERIFY(importCenterImage(path,config.centerImage,error));
-        QFile::remove(path); QVERIFY(!decodeCenterImage(config.centerImage).isNull());
-        config.slots[2]={"复制",{Qt::Key_C,bit(Modifier::Control)}};
-        config.slots[3]={"粘贴",{Qt::Key_V,bit(Modifier::Control)}};
-        config.slots[4]={"网页",{},ActionKind::Website,"https://example.com"};
+        auto config=defaultConfig(); QString error; QVERIFY(importImageAsset(path,config.centerImage,error));
+        QFile::remove(path); QVERIFY(!decodeImageAsset(config.centerImage).isNull());
+        config.slots[2]={"复制",Shortcut{Qt::Key_C,bit(Modifier::Control)}};
+        config.slots[3]={"粘贴",Shortcut{Qt::Key_V,bit(Modifier::Control)}};
+        config.slots[4]={"网页",WebsiteAction{"https://example.com"}};
         QVERIFY(!actionIcon(config.slots[2],Qt::black).isNull());
         QVERIFY(actionIcon(config.slots[2],Qt::black).pixmap(32,32).toImage()!=actionIcon(config.slots[3],Qt::black).pixmap(32,32).toImage());
         QDir().mkpath("artifacts");
@@ -70,8 +110,8 @@ private Q_SLOTS:
         SettingsWindow settings(store);
         auto* kind=settings.findChild<QComboBox*>("slot-kind-0"); QVERIFY(kind);
         kind->setCurrentIndex(actionKind);
-        QCOMPARE(store.current().slots[0].kind,static_cast<ActionKind>(actionKind));
-        QCOMPARE(store.current().slots[0].shortcut.key,0);
+        QCOMPARE(store.current().slots[0].kind(),static_cast<ActionKind>(actionKind));
+        QVERIFY(!std::holds_alternative<Shortcut>(store.current().slots[0].action));
         ConfigStore reopened(store.path()); QVERIFY(reopened.load());
         QCOMPARE(reopened.current(),store.current());
     }
@@ -100,7 +140,7 @@ private Q_SLOTS:
         settings.show();
         QVERIFY(QTest::qWaitForWindowExposed(&settings));
         auto combos = settings.findChildren<QComboBox*>();
-        QCOMPARE(combos.size(),12);
+        QVERIFY(combos.size()>12);
         combos[2]->setCurrentIndex(2);
         QCOMPARE(store.current().theme,Theme::Dark);
         QList<QLineEdit*> names;
@@ -126,9 +166,10 @@ private Q_SLOTS:
         ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());
         SettingsWindow settings(store); settings.show();
         settings.findChild<QComboBox*>("slot-kind-0")->setCurrentIndex(0);
-        auto* recorder = settings.findChildren<QKeySequenceEdit*>().first();
+        auto* recorder = settings.findChild<SlotEditor*>("slot-editor-0")->findChild<QKeySequenceEdit*>();
         recorder->setFocus(); QTest::keyClick(recorder,Qt::Key_Tab);
-        QTRY_COMPARE_WITH_TIMEOUT(store.current().slots[0].shortcut.key,int(Qt::Key_Tab),2000);
+        QTRY_VERIFY_WITH_TIMEOUT(std::holds_alternative<Shortcut>(store.current().slots[0].action),2000);
+        QTRY_COMPARE_WITH_TIMEOUT(std::get<Shortcut>(store.current().slots[0].action).key,int(Qt::Key_Tab),2000);
     }
 
     void renderThemes() {

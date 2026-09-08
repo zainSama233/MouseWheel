@@ -1,10 +1,12 @@
 #include "config/config_store.h"
+#include "config/action_codec.h"
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
 namespace wheel {
+constexpr qint64 MaxConfigBytes=1048576;
 ConfigStore::ConfigStore(QString path, QObject* parent) : QObject(parent), path_(std::move(path)) {}
 bool ConfigStore::load() {
     error_.clear();
@@ -13,7 +15,7 @@ bool ConfigStore::load() {
     if (!file.open(QIODevice::ReadOnly)) {
         error_ = file.errorString(); blocked_ = true; return false;
     }
-    if (file.size() > 262144) { error_ = QStringLiteral("配置文件过大。"); blocked_ = true; return false; }
+    if (file.size() > MaxConfigBytes) { error_ = QStringLiteral("配置文件过大。"); blocked_ = true; return false; }
     QJsonParseError parse;
     const auto doc = QJsonDocument::fromJson(file.readAll(), &parse);
     const auto obj = doc.object();
@@ -23,7 +25,7 @@ bool ConfigStore::load() {
     candidate.button = static_cast<MouseButton>(obj["button"].toInt(-1));
     candidate.theme = static_cast<Theme>(obj["theme"].toInt(-1));
     bool valid = doc.isObject() && parse.error == QJsonParseError::NoError &&
-                 obj["version"].toInt(-1) == 1 && slots.size() == 8;
+                 (obj["version"].toInt(-1) == 1 || obj["version"].toInt(-1) == 2) && slots.size() == 8;
     if(obj.contains("shape") && (!obj["shape"].isDouble() || obj["shape"].toDouble()!=obj["shape"].toInt(-1))) valid=false;
     candidate.shape=static_cast<WheelShape>(obj["shape"].toInt(static_cast<int>(WheelShape::Circle)));
     if(obj.contains("centerImage")) {
@@ -35,13 +37,24 @@ bool ConfigStore::load() {
     if (valid) {
         for (int i=0; i<8; ++i) {
             auto value = slots[i].toObject();
-            if (!value["name"].isString() || !value["key"].isDouble() ||
-                !value["modifiers"].isDouble()) { valid = false; break; }
-            candidate.slots[i] = {value["name"].toString(),
-                {value["key"].toInt(-1), static_cast<unsigned>(value["modifiers"].toInt(-1))},
-                static_cast<ActionKind>(value["kind"].toInt(0)),value["target"].toString()};
-            if(value.contains("target") && !value["target"].isString()) { valid=false; break; }
-            if (value.contains("kind") && (!value["kind"].isDouble() || value["kind"].toDouble()!=value["kind"].toInt(-1))) { valid=false; break; }
+            if(obj["version"].toInt()==1) {
+                if(!value["name"].isString() || !value["key"].isDouble() || !value["modifiers"].isDouble()) { valid=false; break; }
+                if(value.contains("kind") && (!value["kind"].isDouble() || value["kind"].toDouble()!=value["kind"].toInt(-1))) {valid=false;break;}
+                if(value.contains("target") && !value["target"].isString()) {valid=false;break;}
+                const Shortcut key{value["key"].toInt(-1),unsigned(value["modifiers"].toInt(-1))};
+                Action action;
+                switch(value["kind"].toInt(0)) {
+                case 0: action=key; break; case 1: action=ScreenshotAction{}; break; case 2: action=AnnotationAction{}; break;
+                case 3: action=ApplicationAction{value["target"].toString()}; break;
+                case 4: action=WebsiteAction{value["target"].toString()}; break;
+                default: valid=false; break;
+                }
+                if(action.index()!=0 && (key.key || key.modifiers)) valid=false;
+                candidate.slots[i]=Slot{value["name"].toString(),action};
+            } else {
+                const auto decoded=decodeSlot(value); if(!decoded) { valid=false; break; }
+                candidate.slots[i]=*decoded;
+            }
         }
     }
     if (!valid || !validate(candidate).isEmpty()) {
@@ -56,15 +69,14 @@ bool ConfigStore::commit(const Config& config) {
     error_ = validate(config);
     if (!error_.isEmpty()) return false;
     QJsonArray slots;
-    for (const auto& slot : config.slots)
-        slots.append(QJsonObject{{"name",slot.name}, {"target",slot.target}, {"kind",static_cast<int>(slot.kind)}, {"key",slot.shortcut.key},
-                                 {"modifiers",static_cast<int>(slot.shortcut.modifiers)}});
-    QJsonObject obj{{"version",1}, {"modifier",static_cast<int>(config.modifier)},
+    for (const auto& slot : config.slots) slots.append(encodeSlot(slot));
+    QJsonObject obj{{"version",2}, {"modifier",static_cast<int>(config.modifier)},
                     {"button",static_cast<int>(config.button)}, {"theme",static_cast<int>(config.theme)},
                     {"slots",slots}, {"shape",static_cast<int>(config.shape)}, {"centerImage",QString::fromLatin1(config.centerImage.toBase64())}};
     QSaveFile file(path_);
     file.setDirectWriteFallback(false);
     const auto data = QJsonDocument(obj).toJson();
+    if(data.size()>MaxConfigBytes) { error_=QStringLiteral("配置文件过大，请减少图片或命令内容。");return false; }
     if (!file.open(QIODevice::WriteOnly) || file.write(data) != data.size() || !file.commit()) {
         error_ = file.errorString(); return false;
     }

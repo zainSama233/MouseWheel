@@ -4,7 +4,7 @@ using namespace wheel;
 class CoreTests : public QObject {
     Q_OBJECT
     static Config combinationConfig() {
-        auto c = defaultConfig(); c.slots[0]={"Copy",{Qt::Key_C,bit(Modifier::Control)}}; c.slots[2]={"Undo",{Qt::Key_Z,bit(Modifier::Control)}}; c.modifier = Modifier::Control; c.button = MouseButton::Right;
+        auto c = defaultConfig(); c.slots[0]={"Copy",Shortcut{Qt::Key_C,bit(Modifier::Control)}}; c.slots[2]={"Undo",Shortcut{Qt::Key_Z,bit(Modifier::Control)}}; c.modifier = Modifier::Control; c.button = MouseButton::Right;
         return c;
     }
 private Q_SLOTS:
@@ -24,23 +24,23 @@ private Q_SLOTS:
     }
     void launcherValidation() {
         auto config=defaultConfig();
-        config.slots[0]={QStringLiteral("网页"),{},ActionKind::Website,"https://example.com/a?q=test"};
+        config.slots[0]={QStringLiteral("网页"),WebsiteAction{"https://example.com/a?q=test"}};
         QVERIFY(validate(config).isEmpty());
         for(auto target:{"javascript:alert(1)","https://","file:///C:/temp/a","https://example.com/a b"}) {
-            config.slots[0].target=target; QVERIFY(!validate(config).isEmpty());
+            std::get<WebsiteAction>(config.slots[0].action).url=target; QVERIFY(!validate(config).isEmpty());
         }
-        config.slots[0]={QStringLiteral("应用"),{},ActionKind::Application,"C:/Program Files/App/app.exe"};
+        config.slots[0]={QStringLiteral("应用"),ApplicationAction{"C:/Program Files/App/app.exe"}};
         QVERIFY(validate(config).isEmpty());
-        config.slots[0].shortcut.key=Qt::Key_C; QVERIFY(!validate(config).isEmpty());
+        std::get<ApplicationAction>(config.slots[0].action).path="relative.exe"; QVERIFY(!validate(config).isEmpty());
     }
     void screenshotIsExecutableWithoutShortcut() {
         auto config=defaultConfig();
-        config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};
+        config.slots[0]={QStringLiteral("截图"),ScreenshotAction{}};
         QVERIFY(validate(config).isEmpty());
         Interaction core; auto g=Geometry::fit({500,500},{0,0,1000,1000},1);
         QVERIFY(core.press(MouseButton::Middle,0,config,g,1).show);
         auto result=core.release(MouseButton::Middle,g.center+QPointF(0,-100));
-        QVERIFY(result.action); QCOMPARE(result.action->kind,ActionKind::Screenshot);
+        QVERIFY(result.action); QCOMPARE(result.action->kind(),ActionKind::Screenshot);
     }
     void middleHoldDefaultAndPairing() {
         const auto c = defaultConfig();
@@ -91,7 +91,7 @@ private Q_SLOTS:
         QVERIFY(end.consumed);
         QVERIFY(end.hide);
         QVERIFY(end.action.has_value());
-        QCOMPARE(end.action->shortcut.key, combinationConfig().slots[2].shortcut.key);
+        QCOMPARE(std::get<Shortcut>(end.action->action).key, std::get<Shortcut>(combinationConfig().slots[2].action).key);
         QCOMPARE(end.target, quintptr(123));
         QCOMPARE(end.session, id);
     }

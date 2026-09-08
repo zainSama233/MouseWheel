@@ -27,6 +27,11 @@ private Q_SLOTS:
         QVERIFY(recoveryPlan(plan, 0, state).empty());
         QVERIFY(recoveryPlan(plan, plan.size(), state).empty());
     }
+    void pauseBreakAndMedia() {
+        QCOMPARE(virtualKey(Qt::Key_Pause),WORD(VK_PAUSE));QCOMPARE(virtualKey(Qt::Key_Cancel),WORD(VK_CANCEL));
+        QVERIFY(keyEvent(VK_CANCEL,true).ki.dwFlags&KEYEVENTF_EXTENDEDKEY);
+        const auto plan=injectionPlan({Qt::Key_VolumeUp,0},{});QCOMPARE(plan.size(),size_t(2));QCOMPARE(plan[0].ki.wVk,WORD(VK_VOLUME_UP));QVERIFY(plan[1].ki.dwFlags&KEYEVENTF_KEYUP);
+    }
     void everySupportedKeyMaps() {
         for (int key=Qt::Key_A; key<=Qt::Key_Z; ++key) QVERIFY(virtualKey(key));
         for (int key=Qt::Key_F1; key<=Qt::Key_F24; ++key) QVERIFY(virtualKey(key));

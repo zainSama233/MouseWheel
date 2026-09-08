@@ -16,7 +16,7 @@ class AppTests final : public QObject {
 private Q_SLOTS:
     void independentToolsAndSettings() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json")); QVERIFY(store.load());
-        auto config=defaultConfig(); config.slots[0]={actionKindName(ActionKind::ScreenAnnotation),{},ActionKind::ScreenAnnotation};
+        auto config=defaultConfig(); config.slots[0]={actionKindName(ActionKind::ScreenAnnotation),AnnotationAction{}};
         QVERIFY(store.commit(config));
         App app(store.path()); app.start(false);
         QMenu* menu=nullptr;

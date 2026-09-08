@@ -20,7 +20,7 @@ class DesktopTests : public QObject {
     Q_OBJECT
     static Config shortcutConfig() {
         auto c=wheel::defaultConfig();
-        c.slots[0]={"Copy",{Qt::Key_C,bit(Modifier::Control)}};
+        c.slots[0]={"Copy",Shortcut{Qt::Key_C,bit(Modifier::Control)}};
         return c;
     }
     static Config combinationConfig() {
@@ -124,9 +124,9 @@ private Q_SLOTS:
     void toolDispatchAfterHide() {
         QFETCH(int,actionKind);
         activateEditor(); if(QTest::currentTestFailed()) return;
-        auto config=shortcutConfig(); config.slots[0]={QStringLiteral("工具"),{},static_cast<ActionKind>(actionKind)};
-        if(actionKind==int(ActionKind::Application)) config.slots[0].target="C:/Program Files/应用/test.exe";
-        if(actionKind==int(ActionKind::Website)) config.slots[0].target="https://example.com/path?a=1&b=2";
+        auto config=shortcutConfig(); config.slots[0]={QStringLiteral("工具"),actionKind==1?Action{ScreenshotAction{}}:Action{AnnotationAction{}}};
+        if(actionKind==int(ActionKind::Application)) config.slots[0]=Slot{"App",ApplicationAction{"C:/Program Files/应用/test.exe"}};
+        if(actionKind==int(ActionKind::Website)) config.slots[0]=Slot{"Web",WebsiteAction{"https://example.com/path?a=1&b=2"}};
         input_->configure(config); QTest::qWait(40);
         QSignalSpy screenshot(input_.get(),&InputService::actionRequested);
         QApplication::clipboard()->setText("unchanged");
@@ -134,7 +134,7 @@ private Q_SLOTS:
         QCOMPARE(screenshot.size(),0);
         SetCursorPos(qRound(geometry_.center.x()),qRound(geometry_.center.y()-geometry_.radius*0.65));
         mouse(false,true); QTRY_COMPARE(screenshot.size(),1);
-        QCOMPARE(screenshot.first().first().value<Slot>().kind,static_cast<ActionKind>(actionKind));
+        QCOMPARE(screenshot.first().first().value<Slot>().kind(),static_cast<ActionKind>(actionKind));
         QCOMPARE(screenshot.first().first().value<Slot>(),config.slots[0]);
         QVERIFY(!wheel_->isVisible()); QCOMPARE(QApplication::clipboard()->text(),QString("unchanged"));
     }
@@ -254,7 +254,7 @@ private Q_SLOTS:
     }
     void activeConfigurationIsSnapshot() {
         activateEditor(); if (QTest::currentTestFailed()) return; QApplication::clipboard()->setText("before"); begin();
-        auto config=combinationConfig(); config.slots[0].shortcut.key=Qt::Key_X;
+        auto config=combinationConfig(); std::get<Shortcut>(config.slots[0].action).key=Qt::Key_X;
         input_->configure(config); QTest::qWait(40); chooseCopy(); key(VK_LCONTROL,false);
         QTRY_COMPARE(QApplication::clipboard()->text(),QString("MouseWheel desktop test"));
         QCOMPARE(editor_.toPlainText(),QString("MouseWheel desktop test"));

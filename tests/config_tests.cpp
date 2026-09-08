@@ -3,27 +3,39 @@
 #include <QFile>
 #include <QBuffer>
 #include <QImage>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include "config/config_store.h"
 using namespace wheel;
 class ConfigTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void readsExistingConfigAndWritesCurrentFormat() {
+        QTemporaryDir dir;QFile file(dir.filePath("config.json"));QJsonArray slots;
+        slots.append(QJsonObject{{"name","Copy"},{"kind",0},{"key",int(Qt::Key_C)},{"modifiers",1},{"target",""}});
+        for(int i=1;i<8;++i) slots.append(QJsonObject{{"name",""},{"key",0},{"modifiers",0}});
+        const QJsonObject old{{"version",1},{"modifier",0},{"button",1},{"theme",0},{"slots",slots}};
+        QVERIFY(file.open(QIODevice::WriteOnly));file.write(QJsonDocument(old).toJson());file.close();
+        ConfigStore store(file.fileName());QVERIFY(store.load());QCOMPARE(store.current().slots[0].icon.value,QString("copy"));
+        QVERIFY(store.commit(store.current()));QVERIFY(file.open(QIODevice::ReadOnly));QCOMPARE(QJsonDocument::fromJson(file.readAll()).object()["version"].toInt(),2);
+    }
     void launcherAppearanceRoundTrip() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
         auto config=defaultConfig(); config.shape=WheelShape::Hexagon;
         QImage image(96,96,QImage::Format_ARGB32); image.fill(Qt::red);
         QBuffer buffer(&config.centerImage); QVERIFY(buffer.open(QIODevice::WriteOnly)); QVERIFY(image.save(&buffer,"PNG"));
-        config.slots[0]={QStringLiteral("应用"),{},ActionKind::Application,"C:/应用 空格/app.exe"};
-        config.slots[1]={QStringLiteral("网站"),{},ActionKind::Website,"https://example.com/path?q=a&b=2"};
+        config.slots[0]={QStringLiteral("应用"),ApplicationAction{"C:/应用 空格/app.exe"}};
+        config.slots[1]={QStringLiteral("网站"),WebsiteAction{"https://example.com/path?q=a&b=2"}};
         QVERIFY(store.commit(config)); ConfigStore reopened(store.path()); QVERIFY(reopened.load()); QCOMPARE(reopened.current(),config);
         config.centerImage="invalid"; QVERIFY(!store.commit(config));
     }
     void screenshotRoundTripAndValidation() {
         QTemporaryDir dir; ConfigStore store(dir.filePath("config.json"));
-        auto config=defaultConfig(); config.slots[0]={QStringLiteral("截图"),{},ActionKind::Screenshot};
+        auto config=defaultConfig(); config.slots[0]={QStringLiteral("截图"),ScreenshotAction{}};
         QVERIFY(store.commit(config)); ConfigStore reopened(store.path()); QVERIFY(reopened.load());
         QCOMPARE(reopened.current(),config);
-        config.slots[0].shortcut.key=Qt::Key_C; QVERIFY(!store.commit(config));
+        config.slots[0].name.clear(); QVERIFY(!store.commit(config));
     }
     void singleMiddleRoundTrip() {
         QTemporaryDir dir;
@@ -72,7 +84,7 @@ private Q_SLOTS:
         QTemporaryDir dir;
         ConfigStore store(dir.filePath("config.json"));
         QVERIFY(store.load());
-        auto c = store.current(); c.slots[0].shortcut.key = Qt::Key_Control;
+        auto c = store.current(); c.slots[0].action = Shortcut{Qt::Key_Control,0};
         QVERIFY(!store.commit(c));
         QVERIFY(!QFile::exists(store.path()));
     }

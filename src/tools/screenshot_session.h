@@ -1,12 +1,9 @@
 #pragma once
 #include <QObject>
-#include <QPointer>
-#include <QImage>
-#include "core/model.h"
+#include "tools/region_capture.h"
 namespace wheel {
 class PinnedImage;
-class RegionPicker;
-class ScreenshotSession final : public QObject {
+class ScreenshotSession final:public QObject {
     Q_OBJECT
 public:
     explicit ScreenshotSession(QObject* parent=nullptr);
@@ -17,9 +14,8 @@ public:
 Q_SIGNALS:
     void activeChanged();
 private:
-    void clearPickers();
-    quint64 generation_=0;
-    QList<RegionPicker*> pickers_;
+    RegionCapture capture_;
+    Theme theme_=Theme::Light;
     QList<PinnedImage*> pins_;
 };
 }
