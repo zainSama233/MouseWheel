@@ -77,8 +77,8 @@ bash scripts/build-macos.sh
 
 感谢一起把 MouseWheel 做得更好的人：
 
-- [zainSama233](https://github.com/zainSama233)
-- [Xinxn](https://github.com/XinxinTree)
+- [Zain](https://github.com/zainSama233)
+- [Xinxin](https://github.com/XinxinTree)
 
 ## License 与致谢
 
